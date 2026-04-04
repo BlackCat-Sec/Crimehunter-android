@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+  >
+  <title>Crimehunter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <canvas id="unity-canvas" tabindex="-1" aria-label="Crimehunter game canvas"></canvas>
+
+    <section class="overlay" id="loadingOverlay">
+      <div class="overlay-card">
+        <p class="eyebrow">Crimehunter</p>
+        <h1>Loading game</h1>
+        <p class="status" id="statusText">Preparing runtime…</p>
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-value progress-indeterminate" id="progressValue"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="overlay hidden" id="errorOverlay">
+      <div class="overlay-card overlay-card-error">
+        <p class="eyebrow">Startup issue</p>
+        <h1>Game files are incomplete</h1>
+        <p class="status" id="errorText">
+          The Android wrapper loaded, but the original Unity WebAssembly asset was not part of the provided source.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script src="poki-bridge.js"></script>
+  <script src="unity-framework.js"></script>
+  <script src="game-bootstrap.js"></script>
+</body>
+</html>
+
