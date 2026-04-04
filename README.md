@@ -9,14 +9,19 @@ This repository turns the provided web game bundle into an Android Kotlin app th
 - Android-safe Poki bridge stubs so the Unity runtime can boot without the original ad SDK
 - Release build configuration with shrinking and ProGuard enabled
 - A small extraction script that pulls the Unity runtime out of the original `code.txt`
+- The generated `build.wasm` asset compiled from the provided `code2.txt`
 
-## Important blocker
+## Current asset state
 
-The provided `code.txt` contains the Unity JavaScript runtime, but it does **not** include the actual WebAssembly game binary:
+The original files you provided were:
 
-- Required file: `app/src/main/assets/web/build.wasm`
+- `code.txt`: Unity JavaScript runtime bundle
+- `code2.txt`: WebAssembly text format source for the game binary
 
-Without that file, the app builds successfully but the game cannot fully start at runtime. The in-app error overlay will tell you this as well.
+Those have now been converted into:
+
+- `app/src/main/assets/web/unity-framework.js`
+- `app/src/main/assets/web/build.wasm`
 
 ## How the runtime was extracted
 
@@ -32,6 +37,10 @@ powershell -ExecutionPolicy Bypass -File .\tools\extract-unity-framework.ps1 `
   -OutputFile ".\app\src\main\assets\web\unity-framework.js"
 ```
 
+The generated WebAssembly binary is stored at:
+
+- `app/src/main/assets/web/build.wasm`
+
 ## Build
 
 From the repo root:
@@ -46,7 +55,7 @@ From the repo root:
 
 Before publishing, you still need to do the normal store-owner steps:
 
-1. Add the missing `build.wasm` asset from the original web build.
+1. Test the game on a real Android phone or emulator.
 2. Replace the placeholder app icon if you want branded artwork.
 3. Set your final `applicationId` if you want a different package name than `com.gowda.crimehunter`.
 4. Create your upload keystore and sign the release bundle.
