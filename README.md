@@ -10,6 +10,7 @@ This repository turns the provided web game bundle into an Android Kotlin app th
 - Release build configuration with shrinking and ProGuard enabled
 - A small extraction script that pulls the Unity runtime out of the original `code.txt`
 - The generated `build.wasm` asset compiled from the provided `code2.txt`
+- A rebuild script that normalizes the original WAT before compiling it into a browser-compatible wasm binary
 
 ## Current asset state
 
@@ -40,6 +41,16 @@ powershell -ExecutionPolicy Bypass -File .\tools\extract-unity-framework.ps1 `
 The generated WebAssembly binary is stored at:
 
 - `app/src/main/assets/web/build.wasm`
+
+If you ever need to regenerate `build.wasm` from the original `code2.txt`, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\compile-unity-wasm.ps1 `
+  -InputFile "C:\Users\gowda\OneDrive\Desktop\code2.txt" `
+  -OutputFile ".\app\src\main\assets\web\build.wasm"
+```
+
+This step matters because the provided WAT uses compact inline imports and also ends with stray `vv` characters. The rebuild script normalizes those imports and compiles with the WebAssembly features that Android WebView accepts.
 
 ## Build
 
