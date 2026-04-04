@@ -5,13 +5,9 @@
     android:background="@android:color/black"
     android:keepScreenOn="true">
 
-    <WebView
-        android:id="@+id/gameWebView"
+    <com.gowda.crimehunter.CrimehunterGameView
+        android:id="@+id/gameView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@android:color/black"
-        android:importantForAutofill="no"
-        android:overScrollMode="never" />
+        android:layout_height="match_parent" />
 
 </FrameLayout>
-

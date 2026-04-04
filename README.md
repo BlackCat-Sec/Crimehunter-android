@@ -1,56 +1,14 @@
-# Crimehunter Android Wrapper
+# Crimehunter
 
-This repository turns the provided web game bundle into an Android Kotlin app that is structured for Google Play submission.
+Crimehunter is now a native Kotlin Android sniper-action game built for Play Store packaging.
 
-## What is included
+## What is in the app
 
-- Kotlin Android app using a fullscreen `WebView`
-- Local asset hosting through `WebViewAssetLoader`
-- Android-safe Poki bridge stubs so the Unity runtime can boot without the original ad SDK
-- Release build configuration with shrinking and ProGuard enabled
-- A small extraction script that pulls the Unity runtime out of the original `code.txt`
-- The generated `build.wasm` asset compiled from the provided `code2.txt`
-- A rebuild script that normalizes the original WAT before compiling it into a browser-compatible wasm binary
-
-## Current asset state
-
-The original files you provided were:
-
-- `code.txt`: Unity JavaScript runtime bundle
-- `code2.txt`: WebAssembly text format source for the game binary
-
-Those have now been converted into:
-
-- `app/src/main/assets/web/unity-framework.js`
-- `app/src/main/assets/web/build.wasm`
-
-## How the runtime was extracted
-
-The extracted runtime is stored at:
-
-- `app/src/main/assets/web/unity-framework.js`
-
-If you need to regenerate it from the original text bundle:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\extract-unity-framework.ps1 `
-  -InputFile "C:\Users\gowda\OneDrive\Desktop\code.txt" `
-  -OutputFile ".\app\src\main\assets\web\unity-framework.js"
-```
-
-The generated WebAssembly binary is stored at:
-
-- `app/src/main/assets/web/build.wasm`
-
-If you ever need to regenerate `build.wasm` from the original `code2.txt`, use:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\compile-unity-wasm.ps1 `
-  -InputFile "C:\Users\gowda\OneDrive\Desktop\code2.txt" `
-  -OutputFile ".\app\src\main\assets\web\build.wasm"
-```
-
-This step matters because the provided WAT uses compact inline imports and also ends with stray `vv` characters. The rebuild script normalizes those imports and compiles with the WebAssembly features that Android WebView accepts.
+- Fullscreen landscape gameplay with a custom Android `View`
+- Rooftop sniper missions with drag-to-aim shooting
+- Moving enemies, civilian fail states, and reload windows
+- Level progression with mission rewards and upgrade cards
+- Debug APK and release AAB builds through Gradle
 
 ## Build
 
@@ -58,16 +16,16 @@ From the repo root:
 
 ```powershell
 .\gradlew.bat assembleDebug
-.\gradlew.bat assembleRelease
 .\gradlew.bat bundleRelease
 ```
 
-## Play Store readiness checklist
+## Outputs
 
-Before publishing, you still need to do the normal store-owner steps:
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
+- Release bundle: `app/build/outputs/bundle/release/app-release.aab`
 
-1. Test the game on a real Android phone or emulator.
-2. Replace the placeholder app icon if you want branded artwork.
-3. Set your final `applicationId` if you want a different package name than `com.gowda.crimehunter`.
-4. Create your upload keystore and sign the release bundle.
-5. Upload the generated `.aab` from `app/build/outputs/bundle/release/`.
+## Notes
+
+- The app no longer depends on the old WebView wrapper or the extracted browser game assets.
+- The current package name is `com.gowda.crimehunter`.
+- Before Play Store upload, create and use your own signing key for the release bundle.
