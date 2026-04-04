@@ -17,7 +17,7 @@
       <div class="overlay-card">
         <p class="eyebrow">Crimehunter</p>
         <h1>Loading game</h1>
-        <p class="status" id="statusText">Preparing runtime…</p>
+        <p class="status" id="statusText">Preparing runtime...</p>
         <div class="progress-track" aria-hidden="true">
           <div class="progress-value progress-indeterminate" id="progressValue"></div>
         </div>
@@ -27,9 +27,9 @@
     <section class="overlay hidden" id="errorOverlay">
       <div class="overlay-card overlay-card-error">
         <p class="eyebrow">Startup issue</p>
-        <h1>Game files are incomplete</h1>
+        <h1 id="errorTitle">Game could not start</h1>
         <p class="status" id="errorText">
-          The Android wrapper loaded, but the original Unity WebAssembly asset was not part of the provided source.
+          The Android wrapper loaded, but the game runtime stopped during startup.
         </p>
       </div>
     </section>
@@ -40,4 +40,3 @@
   <script src="game-bootstrap.js"></script>
 </body>
 </html>
-
