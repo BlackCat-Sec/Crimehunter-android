@@ -1,13 +1,14 @@
-# Crimehunter
+# Skyline Stick Clash
 
-Crimehunter is now a native Kotlin Android sniper-action game built for Play Store packaging.
+Skyline Stick Clash is now a native Kotlin Android stickman fighting game built for Play Store packaging.
 
 ## What is in the app
 
 - Fullscreen landscape gameplay with a custom Android `View`
-- Rooftop sniper missions with drag-to-aim shooting
-- Moving enemies, civilian fail states, and reload windows
-- Level progression with mission rewards and upgrade cards
+- Original 2D stickman arena combat with touch controls
+- Enemy AI, combo-driven attacks, jumps, dashes, and special bursts
+- Round progression with upgrade picks between matches
+- Mobile HUD, result overlays, and menu screens built in Kotlin
 - Debug APK and release AAB builds through Gradle
 
 ## Build

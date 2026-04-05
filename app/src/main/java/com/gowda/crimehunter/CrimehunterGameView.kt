@@ -3,22 +3,14 @@ package com.gowda.crimehunter
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.CornerPathEffect
 import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.PointF
-import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -32,10 +24,7 @@ class CrimehunterGameView @JvmOverloads constructor(
     private fun dp(value: Float) = value * density
     private fun sp(value: Float) = value * density * resources.configuration.fontScale
 
-    private val random = Random(3307)
-    private val rooftops = mutableListOf<Rooftop>()
-    private val actors = mutableListOf<Actor>()
-    private val projectiles = mutableListOf<Projectile>()
+    private val random = Random(4412)
     private val particles = mutableListOf<Particle>()
     private val upgradeCards = mutableListOf<UpgradeCard>()
 
@@ -43,87 +32,91 @@ class CrimehunterGameView @JvmOverloads constructor(
     private var running = false
     private var layoutReady = false
     private var lastFrameNanos = 0L
-    private var currentLevel = 1
+
+    private var currentRound = 1
     private var coins = 0
     private var bestCombo = 0
-    private var combo = 0
-    private var enemiesRemaining = 0
-    private var message = "Scan the rooftops, line up the shot, and keep civilians safe."
-    private var gameOverReason = ""
-    private var currentAmmo = 3
-    private var shotCooldown = 0f
-    private var reloadRemaining = 0f
-    private var missionTime = 0f
-    private var alertTriggered = false
-    private var isAiming = false
-    private var touchPointerId = MotionEvent.INVALID_POINTER_ID
-    private var hasMissionStarted = false
-    private var recoilKick = 0f
+    private var skylineTime = 0f
+    private var roundTimer = 0f
+    private var aiDecisionTimer = 0f
+    private var freezeRemaining = 0f
     private var screenShake = 0f
-    private var skylinePulse = 0f
-    private var aimPointer = PointF()
-    private var playerPosition = PointF()
-    private var playerMuzzle = PointF()
-    private var titleButton = RectF()
-    private var primaryButton = RectF()
-    private var secondaryButton = RectF()
-    private var optionsButton = RectF()
-    private var optionsBackButton = RectF()
-    private var hudOptionsButton = RectF()
-    private var paceToggleButton = RectF()
-    private var aimGuideToggleButton = RectF()
-    private var screenShakeToggleButton = RectF()
-    private var reloadButton = RectF()
-    private var stats = PlayerStats()
-    private var gameOptions = GameOptions()
+    private var groundY = 0f
+    private var arenaLeft = 0f
+    private var arenaRight = 0f
+    private var statusText = "Enter the arena."
+    private var resultEyebrow = ""
+    private var resultTitle = ""
+    private var resultDescription = ""
     private var optionsReturnPhase = ScenePhase.TITLE
 
-    private val skinTones = listOf(
-        Color.parseColor("#F7D6C1"),
-        Color.parseColor("#E8BEA4"),
-        Color.parseColor("#C99274"),
-        Color.parseColor("#8A5A41"),
+    private var player = Fighter(
+        side = FighterSide.PLAYER,
+        name = "Nova",
+        x = 0f,
+        y = 0f,
+        facing = 1f,
+        color = Color.WHITE,
+        accent = Color.CYAN,
+        outline = Color.BLACK,
+        maxHealth = 120f,
+        health = 120f,
+        moveSpeed = 0f,
+        jumpForce = 0f,
     )
-    private val enemyShirts = listOf(
-        Color.parseColor("#E65B50"),
-        Color.parseColor("#D84B42"),
-        Color.parseColor("#F06A5F"),
-    )
-    private val civilianShirts = listOf(
-        Color.parseColor("#5C86C2"),
-        Color.parseColor("#4E9B8D"),
-        Color.parseColor("#C3A06F"),
-        Color.parseColor("#7C8DC8"),
-    )
-    private val pantColors = listOf(
-        Color.parseColor("#1A2434"),
-        Color.parseColor("#232B3A"),
-        Color.parseColor("#283548"),
-    )
-    private val hairColors = listOf(
-        Color.parseColor("#251A17"),
-        Color.parseColor("#3C2B22"),
-        Color.parseColor("#5D4735"),
-        Color.parseColor("#11161E"),
+    private var enemy = Fighter(
+        side = FighterSide.ENEMY,
+        name = "Riot",
+        x = 0f,
+        y = 0f,
+        facing = -1f,
+        color = Color.WHITE,
+        accent = Color.RED,
+        outline = Color.BLACK,
+        maxHealth = 100f,
+        health = 100f,
+        moveSpeed = 0f,
+        jumpForce = 0f,
     )
 
-    private val frameRunnable = object : Runnable {
-        override fun run() {
-            if (!running) return
+    private var stats = PlayerStats()
+    private var options = GameOptions()
 
-            val now = System.nanoTime()
-            val dt = if (lastFrameNanos == 0L) {
-                0f
-            } else {
-                (((now - lastFrameNanos) / 1_000_000_000f)).coerceIn(0f, 0.033f)
-            }
-            lastFrameNanos = now
+    private var moveLeftHeld = false
+    private var moveRightHeld = false
+    private var jumpHeld = false
+    private var jabHeld = false
+    private var kickHeld = false
+    private var specialHeld = false
 
-            update(dt)
-            invalidate()
-            postOnAnimation(this)
-        }
-    }
+    private var playButton = RectF()
+    private var optionsButton = RectF()
+    private var optionsBackButton = RectF()
+    private var primaryButton = RectF()
+    private var secondaryButton = RectF()
+    private var hudOptionsButton = RectF()
+    private var shakeToggleButton = RectF()
+    private var pauseToggleButton = RectF()
+    private var chillToggleButton = RectF()
+    private var leftButton = RectF()
+    private var rightButton = RectF()
+    private var jumpButton = RectF()
+    private var jabButton = RectF()
+    private var kickButton = RectF()
+    private var specialButton = RectF()
+
+    private val enemyNames = listOf("Riot", "Viper", "Echo", "Mako", "Volt", "Drift")
+    private val enemyAccents = listOf(
+        Color.parseColor("#FF5A52"),
+        Color.parseColor("#FF8F41"),
+        Color.parseColor("#FF3D7F"),
+        Color.parseColor("#F35F3F"),
+    )
+    private val cardAccents = listOf(
+        Color.parseColor("#7CF26A"),
+        Color.parseColor("#58C5FF"),
+        Color.parseColor("#FFD34F"),
+    )
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -136,18 +129,31 @@ class CrimehunterGameView @JvmOverloads constructor(
     }
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
     }
     private val skyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val buttonPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val actorPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private val frameRunnable = object : Runnable {
+        override fun run() {
+            if (!running) return
+
+            val now = System.nanoTime()
+            val dt = if (lastFrameNanos == 0L) {
+                0f
+            } else {
+                (((now - lastFrameNanos) / 1_000_000_000f)).coerceIn(0f, 0.033f)
+            }
+            lastFrameNanos = now
+            update(dt)
+            invalidate()
+            postOnAnimation(this)
+        }
+    }
 
     init {
-        strokePaint.strokeCap = Paint.Cap.ROUND
-        strokePaint.strokeJoin = Paint.Join.ROUND
-        strokePaint.pathEffect = CornerPathEffect(dp(18f))
-        strokePaint.strokeWidth = dp(3f)
         isFocusable = true
         isClickable = true
     }
@@ -167,14 +173,17 @@ class CrimehunterGameView @JvmOverloads constructor(
     }
 
     fun handleBackPress(): Boolean {
-        return if (phase == ScenePhase.TITLE) {
-            false
-        } else if (phase == ScenePhase.OPTIONS) {
-            closeOptions()
-            true
-        } else {
-            resetToTitle()
-            true
+        return when (phase) {
+            ScenePhase.TITLE -> false
+            ScenePhase.OPTIONS -> {
+                closeOptions()
+                true
+            }
+
+            else -> {
+                resetToTitle()
+                true
+            }
         }
     }
 
@@ -193,11 +202,12 @@ class CrimehunterGameView @JvmOverloads constructor(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         layoutReady = w > 0 && h > 0
-        playerPosition = PointF(w * 0.44f, h * 0.84f)
-        aimPointer = PointF(w * 0.67f, h * 0.42f)
+        groundY = h * 0.78f
+        arenaLeft = w * 0.14f
+        arenaRight = w * 0.86f
         rebuildUiLayout()
         if (phase == ScenePhase.PLAYING) {
-            buildMission(currentLevel, keepStats = true)
+            buildRound(currentRound, keepStats = true)
         }
     }
 
@@ -206,8 +216,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             ScenePhase.TITLE -> handleTitleTouch(event)
             ScenePhase.OPTIONS -> handleOptionsTouch(event)
             ScenePhase.PLAYING -> handlePlayingTouch(event)
-            ScenePhase.LEVEL_CLEAR -> handleOverlayTouch(event, continueAction = true)
-            ScenePhase.MISSION_FAILED -> handleOverlayTouch(event, continueAction = false)
+            ScenePhase.ROUND_CLEAR, ScenePhase.ROUND_FAILED -> handleResultTouch(event)
             ScenePhase.UPGRADES -> handleUpgradeTouch(event)
         }
         return true
@@ -216,118 +225,561 @@ class CrimehunterGameView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         drawBackground(canvas)
+        drawArena(canvas)
         drawWorld(canvas)
         drawHud(canvas)
         drawOverlays(canvas)
     }
 
     private fun update(dt: Float) {
-        skylinePulse += dt
-        recoilKick = max(0f, recoilKick - dt * 6f)
-        screenShake = max(0f, screenShake - dt * 8f)
+        skylineTime += dt
+        screenShake = max(0f, screenShake - dt * 18f)
+
+        if (freezeRemaining > 0f) {
+            freezeRemaining = max(0f, freezeRemaining - dt)
+            updateParticles(dt * 0.6f)
+            return
+        }
 
         if (phase != ScenePhase.PLAYING) {
             updateParticles(dt)
             return
         }
 
-        val scaledDt = if (isAiming) dt * stats.focusFactor else dt
-        missionTime += scaledDt
-        shotCooldown = max(0f, shotCooldown - dt)
+        roundTimer += dt
+        aiDecisionTimer = max(0f, aiDecisionTimer - dt)
 
-        if (!hasMissionStarted) {
-            hasMissionStarted = true
-            message = "Eliminate targets. Miss a civilian and the mission is over."
-        }
-
-        if (reloadRemaining > 0f) {
-            reloadRemaining = max(0f, reloadRemaining - dt)
-            if (reloadRemaining == 0f) {
-                currentAmmo = stats.magazineSize
-                message = "Fresh magazine. Get back on the scope."
-            }
-        }
-
-        updateActors(scaledDt)
-        updateProjectiles(dt)
+        updateFighterTimers(player, dt)
+        updateFighterTimers(enemy, dt)
+        updatePlayer(dt)
+        updateEnemyAi(dt)
+        updateFighterMotion(player, dt)
+        updateFighterMotion(enemy, dt)
+        separateFighters()
+        resolveAttack(player, enemy)
+        resolveAttack(enemy, player)
         updateParticles(dt)
 
-        if (phase == ScenePhase.PLAYING && enemiesRemaining == 0) {
-            bestCombo = max(bestCombo, combo)
-            coins += 80 + currentLevel * 12
-            message = "Clean sweep. Secure the roofline and move to the next block."
-            phase = ScenePhase.LEVEL_CLEAR
-            rebuildUiLayout()
+        if (enemy.health <= 0f) {
+            finishRound(won = true)
+        } else if (player.health <= 0f) {
+            finishRound(won = false)
         }
     }
 
-    private fun resetToTitle() {
-        phase = ScenePhase.TITLE
-        optionsReturnPhase = ScenePhase.TITLE
-        rooftops.clear()
-        actors.clear()
-        projectiles.clear()
-        particles.clear()
-        upgradeCards.clear()
-        combo = 0
-        currentAmmo = stats.magazineSize
-        shotCooldown = 0f
-        reloadRemaining = 0f
-        message = "Take your time, read the rooftops, and bring every criminal down clean."
+    private fun updateFighterTimers(fighter: Fighter, dt: Float) {
+        fighter.hitFlash = max(0f, fighter.hitFlash - dt * 6f)
+        fighter.attackCooldown = max(0f, fighter.attackCooldown - dt)
+        fighter.stunRemaining = max(0f, fighter.stunRemaining - dt)
+        fighter.blockRemaining = max(0f, fighter.blockRemaining - dt)
+        fighter.comboTimer = max(0f, fighter.comboTimer - dt)
+        if (fighter.comboTimer == 0f) {
+            fighter.comboCount = 0
+        }
+        fighter.energy = min(100f, fighter.energy + dt * if (fighter.side == FighterSide.PLAYER) 5.5f else 4.2f)
+
+        fighter.attackState?.let { attack ->
+            attack.timer += dt
+            if (attack.timer >= attack.type.totalDuration) {
+                fighter.attackState = null
+            }
+        }
+    }
+
+    private fun updatePlayer(dt: Float) {
+        if (player.stunRemaining > 0f) {
+            return
+        }
+
+        val moveDirection =
+            when {
+                moveLeftHeld && !moveRightHeld -> -1f
+                moveRightHeld && !moveLeftHeld -> 1f
+                else -> 0f
+            }
+
+        if (player.attackState?.type == AttackType.DASH && player.attackState != null) {
+            val dashSpeed = player.moveSpeed * 1.22f
+            player.vx = player.facing * dashSpeed
+        } else {
+            val desired = moveDirection * player.moveSpeed
+            player.vx = approach(player.vx, desired, player.moveSpeed * dt * 8f)
+        }
+
+        if (moveDirection != 0f) {
+            player.facing = moveDirection
+        }
+    }
+
+    private fun updateEnemyAi(dt: Float) {
+        if (enemy.stunRemaining > 0f) {
+            return
+        }
+
+        val distance = player.x - enemy.x
+        val absDistance = abs(distance)
+        enemy.facing = if (distance >= 0f) 1f else -1f
+
+        if (enemy.attackState?.type == AttackType.DASH && enemy.attackState != null) {
+            enemy.vx = enemy.facing * enemy.moveSpeed * 1.18f
+            return
+        }
+
+        val desiredMovement =
+            when {
+                absDistance > dp(150f) -> enemy.facing * enemy.moveSpeed * 0.82f
+                absDistance < dp(84f) && player.attackState == null -> -enemy.facing * enemy.moveSpeed * 0.38f
+                else -> 0f
+            }
+        enemy.vx = approach(enemy.vx, desiredMovement, enemy.moveSpeed * dt * 7f)
+
+        if (aiDecisionTimer > 0f || enemy.attackState != null || enemy.attackCooldown > 0f) {
+            return
+        }
+
+        aiDecisionTimer = 0.12f + random.nextFloat() * 0.2f
+
+        if (player.attackState != null && absDistance < dp(120f) && random.nextFloat() < 0.28f) {
+            enemy.blockRemaining = 0.22f
+            return
+        }
+
+        if (enemy.onGround && random.nextFloat() < 0.05f) {
+            jump(enemy, 0.9f)
+            return
+        }
+
+        if (absDistance < dp(104f)) {
+            val attack =
+                when {
+                    enemy.energy >= 100f && random.nextFloat() < 0.2f -> AttackType.SPECIAL
+                    random.nextFloat() < 0.45f -> AttackType.KICK
+                    else -> AttackType.JAB
+                }
+            attemptAttack(enemy, attack)
+        } else if (absDistance < dp(190f) && random.nextFloat() < 0.3f) {
+            attemptAttack(enemy, AttackType.DASH)
+        }
+    }
+
+    private fun updateFighterMotion(fighter: Fighter, dt: Float) {
+        fighter.x += fighter.vx * dt
+        fighter.vy += dp(2400f) * dt
+        fighter.y += fighter.vy * dt
+
+        if (fighter.y >= groundY) {
+            if (!fighter.onGround && abs(fighter.vy) > dp(120f)) {
+                spawnGroundBurst(fighter.x, groundY, fighter.accent)
+            }
+            fighter.y = groundY
+            fighter.vy = 0f
+            fighter.onGround = true
+        } else {
+            fighter.onGround = false
+        }
+
+        val minX = arenaLeft + dp(34f)
+        val maxX = arenaRight - dp(34f)
+        if (fighter.x < minX) {
+            fighter.x = minX
+            fighter.vx = 0f
+        } else if (fighter.x > maxX) {
+            fighter.x = maxX
+            fighter.vx = 0f
+        }
+
+        if (fighter.attackState?.type != AttackType.DASH) {
+            fighter.vx *= 0.82f
+        }
+    }
+
+    private fun resolveAttack(attacker: Fighter, defender: Fighter) {
+        if (phase != ScenePhase.PLAYING) return
+        val attack = attacker.attackState ?: return
+        if (attack.hasConnected) return
+        if (attack.timer < attack.type.startup || attack.timer > attack.type.startup + attack.type.active) return
+
+        val facing = attacker.facing
+        val dx = defender.x - attacker.x
+        if (dx * facing < dp(8f) || dx * facing > dp(attack.type.reach)) return
+        if (abs(defender.y - attacker.y) > dp(78f)) return
+
+        val blocked = defender.blockRemaining > 0f
+        var damage = damageFor(attacker, attack.type)
+        if (blocked) {
+            damage *= 0.38f
+        } else if (defender.side == FighterSide.PLAYER) {
+            val chillReduction = if (options.chillMode) 0.88f else 1f
+            damage *= (1f - stats.guardPower) * chillReduction
+        }
+
+        defender.health = max(0f, defender.health - damage)
+        defender.vx = facing * dp(attack.type.knockbackX) * if (blocked) 0.35f else 1f
+        defender.vy = -dp(attack.type.knockbackY) * if (blocked) 0.25f else 1f
+        defender.onGround = false
+        defender.hitFlash = 0.18f
+        defender.stunRemaining = if (blocked) 0.08f else 0.16f + attack.type.active * 0.5f
+
+        val gain = attack.type.energyGain + if (attacker.side == FighterSide.PLAYER) stats.energyGainBonus * 18f else 0f
+        attacker.energy = min(100f, attacker.energy + gain)
+        attacker.comboCount += 1
+        attacker.comboTimer = 1.2f
+        if (attacker.side == FighterSide.PLAYER) {
+            bestCombo = max(bestCombo, attacker.comboCount)
+        }
+
+        attack.hasConnected = true
+        if (options.hitPause) {
+            freezeRemaining = if (attack.type == AttackType.SPECIAL) 0.06f else 0.03f
+        }
+        if (options.cinematicShake) {
+            screenShake = if (attack.type == AttackType.SPECIAL) dp(16f) else dp(9f)
+        }
+        spawnImpact(
+            x = attacker.x + facing * dp(attack.type.reach * 0.55f),
+            y = min(attacker.y, defender.y) - dp(44f),
+            accent = attacker.accent,
+            strong = attack.type == AttackType.SPECIAL,
+        )
+    }
+
+    private fun damageFor(attacker: Fighter, type: AttackType): Float {
+        val upgradeBonus =
+            if (attacker.side == FighterSide.PLAYER) {
+                when (type) {
+                    AttackType.JAB -> stats.jabBonus
+                    AttackType.KICK -> stats.kickBonus
+                    AttackType.DASH -> stats.dashBonus
+                    AttackType.SPECIAL -> stats.specialBonus
+                }
+            } else {
+                currentRound * 0.85f
+            }
+        return type.damage + upgradeBonus
+    }
+
+    private fun attemptAttack(fighter: Fighter, type: AttackType): Boolean {
+        if (fighter.attackCooldown > 0f || fighter.stunRemaining > 0f || fighter.attackState != null) return false
+        if (type == AttackType.SPECIAL && fighter.energy < type.cost) return false
+
+        fighter.attackState = AttackState(type = type)
+        fighter.attackCooldown = type.totalDuration + 0.05f
+        if (type == AttackType.SPECIAL) {
+            fighter.energy = max(0f, fighter.energy - type.cost)
+        }
+        if (type == AttackType.DASH) {
+            fighter.vx = fighter.facing * fighter.moveSpeed * 1.26f
+        }
+        return true
+    }
+
+    private fun jump(fighter: Fighter, multiplier: Float = 1f) {
+        if (!fighter.onGround || fighter.stunRemaining > 0f) return
+        fighter.vy = -fighter.jumpForce * multiplier
+        fighter.onGround = false
+        spawnGroundBurst(fighter.x, groundY, fighter.accent)
+    }
+
+    private fun separateFighters() {
+        val spacing = dp(86f)
+        val overlap = spacing - abs(player.x - enemy.x)
+        if (overlap <= 0f) return
+
+        val push = overlap * 0.5f
+        if (player.x <= enemy.x) {
+            player.x -= push
+            enemy.x += push
+        } else {
+            player.x += push
+            enemy.x -= push
+        }
+    }
+
+    private fun finishRound(won: Boolean) {
+        if (phase != ScenePhase.PLAYING) return
+        clearTouchControls()
+        if (won) {
+            phase = ScenePhase.ROUND_CLEAR
+            coins += 110 + currentRound * 24
+            resultEyebrow = "ROUND WON"
+            resultTitle = "Arena Dominated"
+            resultDescription = "You dropped ${enemy.name} and kept the combo alive. Step deeper into the ladder."
+        } else {
+            phase = ScenePhase.ROUND_FAILED
+            resultEyebrow = "ROUND LOST"
+            resultTitle = "You Were Broken"
+            resultDescription = "${enemy.name} took the round. Reset your rhythm and strike back."
+        }
         rebuildUiLayout()
     }
 
-    private fun rebuildUiLayout() {
-        val buttonWidth = width * 0.18f
-        val buttonHeight = height * 0.085f
-        val centerX = width * 0.5f
-        titleButton = RectF(
-            centerX - buttonWidth * 0.5f,
-            height * 0.67f,
-            centerX + buttonWidth * 0.5f,
-            height * 0.67f + buttonHeight,
+    private fun buildRound(round: Int, keepStats: Boolean) {
+        if (!layoutReady) return
+        if (!keepStats) {
+            stats = PlayerStats()
+            coins = 0
+            bestCombo = 0
+        }
+
+        clearTouchControls()
+        particles.clear()
+        upgradeCards.clear()
+        phase = ScenePhase.PLAYING
+        currentRound = round
+        roundTimer = 0f
+        aiDecisionTimer = 0.18f
+        freezeRemaining = 0f
+        screenShake = 0f
+        statusText = "Round $round. Break the rival and rule the skyline."
+
+        player = Fighter(
+            side = FighterSide.PLAYER,
+            name = "Nova",
+            x = width * 0.28f,
+            y = groundY,
+            facing = 1f,
+            color = Color.parseColor("#F7F9FD"),
+            accent = Color.parseColor("#5CEBFF"),
+            outline = Color.parseColor("#08101E"),
+            maxHealth = stats.maxHealth,
+            health = stats.maxHealth,
+            energy = if (round == 1) 24f else min(50f, round * 8f),
+            moveSpeed = dp(stats.moveSpeed),
+            jumpForce = dp(stats.jumpForce),
         )
-        optionsButton = RectF(
-            centerX - buttonWidth * 0.5f,
-            titleButton.bottom + dp(16f),
-            centerX + buttonWidth * 0.5f,
-            titleButton.bottom + dp(16f) + buttonHeight * 0.9f,
+
+        player.x = player.x.coerceIn(arenaLeft + dp(64f), arenaRight - dp(220f))
+
+        player.blockRemaining = if (options.chillMode) 0.08f else 0f
+        enemy = Fighter(
+            side = FighterSide.ENEMY,
+            name = enemyNames.random(random),
+            x = width * 0.72f,
+            y = groundY,
+            facing = -1f,
+            color = Color.parseColor("#FFF3ED"),
+            accent = enemyAccents.random(random),
+            outline = Color.parseColor("#120B10"),
+            maxHealth = 84f + round * 18f,
+            health = 84f + round * 18f,
+            energy = min(42f, round * 7f),
+            moveSpeed = dp(312f + round * 10f),
+            jumpForce = dp(840f + round * 8f),
         )
-        primaryButton = RectF(
-            centerX - buttonWidth * 0.5f,
-            height * 0.78f,
-            centerX + buttonWidth * 0.5f,
-            height * 0.78f + buttonHeight,
-        )
-        secondaryButton = RectF(
-            centerX - buttonWidth * 0.4f,
-            primaryButton.bottom + dp(12f),
-            centerX + buttonWidth * 0.4f,
-            primaryButton.bottom + dp(12f) + buttonHeight * 0.82f,
-        )
-        reloadButton = RectF(
-            width - dp(104f),
-            height - dp(92f),
-            width - dp(22f),
-            height - dp(26f),
-        )
-        hudOptionsButton = RectF(dp(14f), dp(14f), dp(46f), dp(46f))
-        val optionsCardLeft = width * 0.38f
-        val optionsCardRight = width * 0.62f
-        val optionsTop = height * 0.38f
-        val toggleHeight = dp(54f)
-        paceToggleButton = RectF(optionsCardLeft, optionsTop, optionsCardRight, optionsTop + toggleHeight)
-        aimGuideToggleButton = RectF(optionsCardLeft, paceToggleButton.bottom + dp(12f), optionsCardRight, paceToggleButton.bottom + dp(12f) + toggleHeight)
-        screenShakeToggleButton = RectF(optionsCardLeft, aimGuideToggleButton.bottom + dp(12f), optionsCardRight, aimGuideToggleButton.bottom + dp(12f) + toggleHeight)
-        optionsBackButton = RectF(optionsCardLeft, screenShakeToggleButton.bottom + dp(18f), optionsCardRight, screenShakeToggleButton.bottom + dp(18f) + dp(46f))
+        rebuildUiLayout()
+    }
+
+    private fun buildUpgrades() {
+        upgradeCards.clear()
+        phase = ScenePhase.UPGRADES
+
+        val cardWidth = width * 0.22f
+        val cardHeight = height * 0.34f
+        val gap = width * 0.03f
+        val totalWidth = cardWidth * 3f + gap * 2f
+        val startX = (width - totalWidth) * 0.5f
+        val top = height * 0.32f
+        val choices = UpgradeType.entries.shuffled(random).take(3)
+
+        choices.forEachIndexed { index, type ->
+            val left = startX + index * (cardWidth + gap)
+            val rect = RectF(left, top, left + cardWidth, top + cardHeight)
+            upgradeCards += UpgradeCard(
+                type = type,
+                rect = rect,
+                accent = cardAccents[index % cardAccents.size],
+            )
+        }
+    }
+
+    private fun applyUpgrade(type: UpgradeType) {
+        when (type) {
+            UpgradeType.POWER -> {
+                stats.jabBonus += 2f
+                stats.kickBonus += 3f
+                stats.specialBonus += 4f
+            }
+
+            UpgradeType.FOOTWORK -> {
+                stats.moveSpeed += 28f
+                stats.dashBonus += 2f
+            }
+
+            UpgradeType.SPRING -> {
+                stats.jumpForce += 74f
+                stats.guardPower += 0.02f
+            }
+
+            UpgradeType.SURGE -> {
+                stats.energyGainBonus += 0.12f
+                stats.specialBonus += 2f
+            }
+
+            UpgradeType.SPIRIT -> {
+                stats.maxHealth += 14f
+            }
+        }
+        buildRound(currentRound + 1, keepStats = true)
+    }
+
+    private fun handleTitleTouch(event: MotionEvent) {
+        if (event.actionMasked != MotionEvent.ACTION_DOWN) return
+        when {
+            playButton.contains(event.x, event.y) -> buildRound(1, keepStats = false)
+            optionsButton.contains(event.x, event.y) -> openOptions(ScenePhase.TITLE)
+        }
+    }
+
+    private fun handleOptionsTouch(event: MotionEvent) {
+        if (event.actionMasked != MotionEvent.ACTION_DOWN) return
+        when {
+            shakeToggleButton.contains(event.x, event.y) -> options.cinematicShake = !options.cinematicShake
+            pauseToggleButton.contains(event.x, event.y) -> options.hitPause = !options.hitPause
+            chillToggleButton.contains(event.x, event.y) -> options.chillMode = !options.chillMode
+            optionsBackButton.contains(event.x, event.y) -> closeOptions()
+        }
+        invalidate()
+    }
+
+    private fun handlePlayingTouch(event: MotionEvent) {
+        if ((event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) &&
+            hudOptionsButton.contains(event.getX(event.actionIndex), event.getY(event.actionIndex))
+        ) {
+            clearTouchControls()
+            openOptions(ScenePhase.PLAYING)
+            return
+        }
+        refreshTouchControls(event)
+    }
+
+    private fun handleResultTouch(event: MotionEvent) {
+        if (event.actionMasked != MotionEvent.ACTION_DOWN) return
+        when {
+            primaryButton.contains(event.x, event.y) -> {
+                if (phase == ScenePhase.ROUND_CLEAR) {
+                    if (currentRound % 2 == 0) {
+                        buildUpgrades()
+                    } else {
+                        buildRound(currentRound + 1, keepStats = true)
+                    }
+                } else {
+                    buildRound(currentRound, keepStats = true)
+                }
+            }
+
+            secondaryButton.contains(event.x, event.y) -> resetToTitle()
+        }
+    }
+
+    private fun handleUpgradeTouch(event: MotionEvent) {
+        if (event.actionMasked != MotionEvent.ACTION_DOWN) return
+        upgradeCards.firstOrNull { it.rect.contains(event.x, event.y) }?.let { applyUpgrade(it.type) }
+    }
+
+    private fun refreshTouchControls(event: MotionEvent) {
+        if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            clearTouchControls()
+            return
+        }
+
+        val previousJump = jumpHeld
+        val previousJab = jabHeld
+        val previousKick = kickHeld
+        val previousSpecial = specialHeld
+
+        moveLeftHeld = false
+        moveRightHeld = false
+        jumpHeld = false
+        jabHeld = false
+        kickHeld = false
+        specialHeld = false
+
+        for (index in 0 until event.pointerCount) {
+            val x = event.getX(index)
+            val y = event.getY(index)
+            if (leftButton.contains(x, y)) moveLeftHeld = true
+            if (rightButton.contains(x, y)) moveRightHeld = true
+            if (jumpButton.contains(x, y)) jumpHeld = true
+            if (jabButton.contains(x, y)) jabHeld = true
+            if (kickButton.contains(x, y)) kickHeld = true
+            if (specialButton.contains(x, y)) specialHeld = true
+        }
+
+        if (jumpHeld && !previousJump) jump(player)
+        if (jabHeld && !previousJab) attemptAttack(player, AttackType.JAB)
+        if (kickHeld && !previousKick) attemptAttack(player, AttackType.KICK)
+        if (specialHeld && !previousSpecial) {
+            if (!attemptAttack(player, AttackType.SPECIAL)) {
+                attemptAttack(player, AttackType.DASH)
+            }
+        }
+    }
+
+    private fun clearTouchControls() {
+        moveLeftHeld = false
+        moveRightHeld = false
+        jumpHeld = false
+        jabHeld = false
+        kickHeld = false
+        specialHeld = false
+    }
+
+    private fun openOptions(returnPhase: ScenePhase) {
+        optionsReturnPhase = returnPhase
+        phase = ScenePhase.OPTIONS
+        clearTouchControls()
+        rebuildUiLayout()
     }
 
     private fun closeOptions() {
         phase = optionsReturnPhase
         if (phase == ScenePhase.TITLE) {
-            message = "Plan the shot, then clear the block."
+            statusText = "Enter the arena."
         }
         rebuildUiLayout()
+    }
+
+    private fun resetToTitle() {
+        phase = ScenePhase.TITLE
+        particles.clear()
+        upgradeCards.clear()
+        clearTouchControls()
+        optionsReturnPhase = ScenePhase.TITLE
+        statusText = "Enter the arena."
+        rebuildUiLayout()
+    }
+
+    private fun rebuildUiLayout() {
+        val centerX = width * 0.5f
+        val buttonWidth = width * 0.19f
+        val buttonHeight = height * 0.085f
+        playButton = RectF(centerX - buttonWidth * 0.5f, height * 0.68f, centerX + buttonWidth * 0.5f, height * 0.68f + buttonHeight)
+        optionsButton = RectF(centerX - buttonWidth * 0.5f, height * 0.79f, centerX + buttonWidth * 0.5f, height * 0.79f + buttonHeight)
+
+        primaryButton = RectF(centerX - buttonWidth - dp(18f), height * 0.72f, centerX - dp(18f), height * 0.72f + buttonHeight)
+        secondaryButton = RectF(centerX + dp(18f), height * 0.72f, centerX + buttonWidth + dp(18f), height * 0.72f + buttonHeight)
+
+        hudOptionsButton = RectF(dp(14f), dp(14f), dp(50f), dp(50f))
+
+        val optionsLeft = width * 0.34f
+        val optionsRight = width * 0.66f
+        val optionsTop = height * 0.38f
+        val rowHeight = dp(54f)
+        shakeToggleButton = RectF(optionsLeft, optionsTop, optionsRight, optionsTop + rowHeight)
+        pauseToggleButton = RectF(optionsLeft, optionsTop + rowHeight + dp(14f), optionsRight, optionsTop + rowHeight * 2f + dp(14f))
+        chillToggleButton = RectF(optionsLeft, optionsTop + (rowHeight + dp(14f)) * 2f, optionsRight, optionsTop + rowHeight * 3f + dp(28f))
+        optionsBackButton = RectF(optionsLeft + dp(48f), chillToggleButton.bottom + dp(26f), optionsRight - dp(48f), chillToggleButton.bottom + dp(26f) + dp(48f))
+
+        val moveSize = dp(84f)
+        leftButton = RectF(dp(22f), height - moveSize - dp(28f), dp(22f) + moveSize, height - dp(28f))
+        rightButton = RectF(leftButton.right + dp(18f), leftButton.top, leftButton.right + dp(18f) + moveSize, leftButton.bottom)
+        jumpButton = RectF(rightButton.left + dp(26f), leftButton.top - moveSize - dp(18f), rightButton.left + dp(26f) + moveSize, leftButton.top - dp(18f))
+
+        val actionWidth = dp(96f)
+        val actionHeight = dp(78f)
+        jabButton = RectF(width - actionWidth * 3f - dp(50f), height - actionHeight - dp(28f), width - actionWidth * 2f - dp(34f), height - dp(28f))
+        kickButton = RectF(jabButton.right + dp(14f), jabButton.top - dp(18f), jabButton.right + dp(14f) + actionWidth, jabButton.bottom - dp(18f))
+        specialButton = RectF(kickButton.right + dp(14f), jabButton.top, kickButton.right + dp(14f) + actionWidth, jabButton.bottom)
     }
 
     private fun drawBackground(canvas: Canvas) {
@@ -337,537 +789,619 @@ class CrimehunterGameView @JvmOverloads constructor(
             0f,
             height.toFloat(),
             intArrayOf(
-                Color.parseColor("#55C9FF"),
-                Color.parseColor("#2EA6F6"),
-                Color.parseColor("#2D8AE8"),
-                Color.parseColor("#6EC8FF"),
+                Color.parseColor("#2A1847"),
+                Color.parseColor("#55306A"),
+                Color.parseColor("#F58B5E"),
+                Color.parseColor("#FFCF9B"),
             ),
-            floatArrayOf(0f, 0.48f, 0.82f, 1f),
+            floatArrayOf(0f, 0.36f, 0.73f, 1f),
             Shader.TileMode.CLAMP,
         )
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), skyPaint)
         skyPaint.shader = null
 
-        glowPaint.shader = RadialGradient(
-            width * 0.58f,
-            height * 0.18f,
-            min(width, height) * 0.23f,
-            intArrayOf(Color.argb(110, 255, 255, 255), Color.TRANSPARENT),
-            floatArrayOf(0f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-        canvas.drawCircle(width * 0.58f, height * 0.18f, min(width, height) * 0.2f, glowPaint)
-        glowPaint.shader = null
+        fillPaint.color = Color.argb(130, 255, 217, 161)
+        canvas.drawCircle(width * 0.78f, height * 0.2f, dp(58f), fillPaint)
+        fillPaint.color = Color.argb(45, 255, 255, 255)
+        drawCloud(canvas, width * 0.2f, height * 0.18f, dp(74f))
+        drawCloud(canvas, width * 0.48f, height * 0.11f, dp(54f))
+        drawCloud(canvas, width * 0.7f, height * 0.28f, dp(66f))
 
-        fillPaint.color = Color.argb(120, 255, 255, 255)
-        drawCloud(canvas, width * 0.14f, height * 0.12f, dp(40f))
-        drawCloud(canvas, width * 0.33f, height * 0.18f, dp(32f))
-        drawCloud(canvas, width * 0.62f, height * 0.14f, dp(46f))
-        drawCloud(canvas, width * 0.82f, height * 0.2f, dp(30f))
-
-        fillPaint.color = Color.parseColor("#4C9BE8")
-        canvas.drawRect(0f, height * 0.5f, width.toFloat(), height * 0.6f, fillPaint)
-
-        val layers = listOf(
-            Triple(height * 0.56f, Color.parseColor("#88ACD3"), 0.08f),
-            Triple(height * 0.60f, Color.parseColor("#A4C0DD"), 0.11f),
-            Triple(height * 0.64f, Color.parseColor("#BDD2E8"), 0.14f),
-        )
-        layers.forEachIndexed { index, (baseTop, color, blockWidth) ->
-            fillPaint.color = color
-            var x = -width * 0.04f
-            while (x < width * 1.08f) {
-                val wave = sin((x / width * PI * 4) + skylinePulse * (0.18f + index * 0.06f)).toFloat()
-                val heightFactor = 0.07f + index * 0.04f + abs(wave) * 0.05f
-                val top = baseTop - this.height * heightFactor
-                canvas.drawRoundRect(
-                    RectF(x, top, x + width * blockWidth, height.toFloat()),
-                    dp(6f),
-                    dp(6f),
-                    fillPaint,
-                )
-                x += width * (blockWidth + 0.02f)
-            }
+        fillPaint.color = Color.parseColor("#543563")
+        repeat(8) { index ->
+            val towerWidth = width * (0.09f + index % 3 * 0.014f)
+            val left = index * width / 7.6f - dp(20f)
+            val top = height * (0.43f + (index % 4) * 0.03f)
+            canvas.drawRoundRect(RectF(left, top, left + towerWidth, height.toFloat()), dp(18f), dp(18f), fillPaint)
         }
 
-        fillPaint.color = Color.parseColor("#242833")
-        canvas.drawRect(0f, height * 0.62f, width.toFloat(), height.toFloat(), fillPaint)
-        strokePaint.color = Color.argb(70, 255, 255, 255)
-        strokePaint.strokeWidth = dp(2f)
-        canvas.drawLine(width * 0.12f, height * 0.64f, width * 0.04f, height.toFloat(), strokePaint)
-        canvas.drawLine(width * 0.32f, height * 0.64f, width * 0.26f, height.toFloat(), strokePaint)
-        canvas.drawLine(width * 0.5f, height * 0.64f, width * 0.5f, height.toFloat(), strokePaint)
-        canvas.drawLine(width * 0.68f, height * 0.64f, width * 0.74f, height.toFloat(), strokePaint)
-        canvas.drawLine(width * 0.88f, height * 0.64f, width * 0.96f, height.toFloat(), strokePaint)
+        fillPaint.color = Color.parseColor("#1D1731")
+        repeat(9) { index ->
+            val towerWidth = width * (0.12f + (index % 2) * 0.02f)
+            val left = index * width / 8.4f - dp(18f)
+            val top = height * (0.56f + (index % 3) * 0.025f)
+            canvas.drawRoundRect(RectF(left, top, left + towerWidth, height.toFloat()), dp(20f), dp(20f), fillPaint)
+        }
+    }
+
+    private fun drawArena(canvas: Canvas) {
+        fillPaint.color = Color.parseColor("#120F20")
+        canvas.drawRect(0f, groundY + dp(18f), width.toFloat(), height.toFloat(), fillPaint)
+
+        val platform = RectF(arenaLeft, groundY - dp(18f), arenaRight, groundY + dp(18f))
+        fillPaint.color = Color.parseColor("#241A37")
+        canvas.drawRoundRect(platform, dp(18f), dp(18f), fillPaint)
+
+        fillPaint.color = Color.parseColor("#57D7FF")
+        canvas.drawRect(platform.left + dp(20f), platform.top + dp(10f), platform.right - dp(20f), platform.top + dp(14f), fillPaint)
+        fillPaint.color = Color.parseColor("#FF7187")
+        canvas.drawRect(platform.left + dp(20f), platform.bottom - dp(14f), platform.right - dp(20f), platform.bottom - dp(10f), fillPaint)
+
+        fillPaint.color = Color.parseColor("#302245")
+        repeat(5) { index ->
+            val x = arenaLeft + dp(54f) + index * ((arenaRight - arenaLeft - dp(108f)) / 4f)
+            canvas.drawRoundRect(RectF(x - dp(10f), groundY - dp(72f), x + dp(10f), groundY - dp(18f)), dp(8f), dp(8f), fillPaint)
+        }
     }
 
     private fun drawWorld(canvas: Canvas) {
-        rooftops.forEachIndexed { index, rooftop ->
-            drawRoofVolume(canvas, rooftop, index)
+        val shakeX = if (screenShake > 0f) random.nextFloat() * screenShake - screenShake * 0.5f else 0f
+        val shakeY = if (screenShake > 0f) random.nextFloat() * screenShake - screenShake * 0.5f else 0f
+        canvas.save()
+        canvas.translate(shakeX, shakeY)
+        drawFighter(canvas, player)
+        drawFighter(canvas, enemy)
+        drawParticles(canvas)
+        canvas.restore()
+    }
+
+    private fun drawFighter(canvas: Canvas, fighter: Fighter) {
+        val headRadius = dp(18f)
+        val torsoTop = fighter.y - dp(116f)
+        val torsoBottom = fighter.y - dp(54f)
+        val shoulderY = torsoTop + dp(18f)
+        val hipY = torsoBottom
+        val attack = fighter.attackState
+        val animTime = attack?.timer ?: 0f
+        val attackPose = if (attack != null) min(1f, animTime / max(attack.type.startup + attack.type.active, 0.01f)) else 0f
+        val reachBoost =
+            when (attack?.type) {
+                AttackType.JAB -> dp(26f)
+                AttackType.KICK -> dp(34f)
+                AttackType.DASH -> dp(44f)
+                AttackType.SPECIAL -> dp(56f)
+                null -> 0f
+            }
+
+        val leadArmX = fighter.x + fighter.facing * (dp(18f) + reachBoost * attackPose)
+        val leadArmY = shoulderY + if (attack?.type == AttackType.KICK) dp(20f) else -dp(6f)
+        val rearArmX = fighter.x - fighter.facing * dp(18f)
+        val rearArmY = shoulderY + dp(12f)
+        val leadLegX = fighter.x + fighter.facing * (dp(16f) + if (attack?.type == AttackType.KICK) reachBoost * 0.72f else 0f)
+        val leadLegY = fighter.y
+        val rearLegX = fighter.x - fighter.facing * dp(18f)
+        val rearLegY = fighter.y
+        val neckY = torsoTop - dp(6f)
+
+        fillPaint.color = Color.argb(65, 0, 0, 0)
+        canvas.drawOval(RectF(fighter.x - dp(28f), fighter.y - dp(8f), fighter.x + dp(28f), fighter.y + dp(8f)), fillPaint)
+
+        if (fighter.side == FighterSide.PLAYER && fighter.energy >= 100f) {
+            fillPaint.color = Color.argb(70, Color.red(fighter.accent), Color.green(fighter.accent), Color.blue(fighter.accent))
+            canvas.drawCircle(fighter.x, torsoTop + dp(24f), dp(48f) + sin(skylineTime * 7f) * dp(4f), fillPaint)
         }
 
-        drawPlayer(canvas)
-        drawActors(canvas)
-        drawProjectiles(canvas)
-        drawParticles(canvas)
-        if (phase == ScenePhase.PLAYING && isAiming) {
-            drawScope(canvas)
+        val flashColor = if (fighter.hitFlash > 0f) blendWithWhite(fighter.accent, fighter.hitFlash * 4f) else fighter.accent
+        drawStickmanSkeleton(
+            canvas = canvas,
+            fighter = fighter,
+            neckY = neckY,
+            torsoBottom = torsoBottom,
+            leadArmX = leadArmX,
+            leadArmY = leadArmY,
+            rearArmX = rearArmX,
+            rearArmY = rearArmY,
+            leadLegX = leadLegX,
+            leadLegY = leadLegY,
+            rearLegX = rearLegX,
+            rearLegY = rearLegY,
+            color = fighter.outline,
+            width = dp(13f),
+        )
+        drawStickmanSkeleton(
+            canvas = canvas,
+            fighter = fighter,
+            neckY = neckY,
+            torsoBottom = torsoBottom,
+            leadArmX = leadArmX,
+            leadArmY = leadArmY,
+            rearArmX = rearArmX,
+            rearArmY = rearArmY,
+            leadLegX = leadLegX,
+            leadLegY = leadLegY,
+            rearLegX = rearLegX,
+            rearLegY = rearLegY,
+            color = flashColor,
+            width = dp(7f),
+        )
+
+        fillPaint.color = if (fighter.hitFlash > 0f) Color.WHITE else fighter.color
+        canvas.drawCircle(fighter.x, torsoTop - headRadius, headRadius, fillPaint)
+        strokePaint.color = fighter.outline
+        strokePaint.strokeWidth = dp(4f)
+        canvas.drawCircle(fighter.x, torsoTop - headRadius, headRadius, strokePaint)
+
+        strokePaint.color = fighter.accent
+        strokePaint.strokeWidth = dp(4f)
+        canvas.drawLine(
+            fighter.x - fighter.facing * dp(14f),
+            torsoTop - headRadius * 0.95f,
+            fighter.x + fighter.facing * dp(10f),
+            torsoTop - headRadius * 0.85f,
+            strokePaint,
+        )
+
+        if (fighter.blockRemaining > 0f) {
+            strokePaint.color = blendWithWhite(fighter.accent, 0.35f)
+            strokePaint.strokeWidth = dp(5f)
+            canvas.drawArc(
+                RectF(fighter.x - dp(40f), torsoTop - dp(26f), fighter.x + dp(40f), torsoBottom + dp(18f)),
+                if (fighter.facing > 0f) -70f else 250f,
+                140f,
+                false,
+                strokePaint,
+            )
+        }
+    }
+
+    private fun drawStickmanSkeleton(
+        canvas: Canvas,
+        fighter: Fighter,
+        neckY: Float,
+        torsoBottom: Float,
+        leadArmX: Float,
+        leadArmY: Float,
+        rearArmX: Float,
+        rearArmY: Float,
+        leadLegX: Float,
+        leadLegY: Float,
+        rearLegX: Float,
+        rearLegY: Float,
+        color: Int,
+        width: Float,
+    ) {
+        strokePaint.color = color
+        strokePaint.strokeWidth = width
+        canvas.drawLine(fighter.x, neckY, fighter.x, torsoBottom, strokePaint)
+        canvas.drawLine(fighter.x, neckY + dp(18f), leadArmX, leadArmY, strokePaint)
+        canvas.drawLine(fighter.x, neckY + dp(18f), rearArmX, rearArmY, strokePaint)
+        canvas.drawLine(fighter.x, torsoBottom, leadLegX, leadLegY, strokePaint)
+        canvas.drawLine(fighter.x, torsoBottom, rearLegX, rearLegY, strokePaint)
+    }
+
+    private fun drawParticles(canvas: Canvas) {
+        particles.forEach { particle ->
+            fillPaint.color = particle.color
+            canvas.drawCircle(particle.x, particle.y, particle.size, fillPaint)
         }
     }
 
     private fun drawHud(canvas: Canvas) {
-        if (phase == ScenePhase.TITLE || phase == ScenePhase.OPTIONS) {
-            return
-        }
+        if (phase == ScenePhase.TITLE || phase == ScenePhase.OPTIONS) return
 
+        drawHealthPanel(canvas, RectF(dp(24f), dp(22f), width * 0.31f, dp(90f)), player, alignLeft = true)
+        drawHealthPanel(canvas, RectF(width * 0.69f, dp(22f), width - dp(24f), dp(90f)), enemy, alignLeft = false)
+        drawRoundChip(canvas)
+        drawCoinChip(canvas)
         drawIconButton(canvas, hudOptionsButton, "II")
-        drawMissionChip(canvas)
-        drawCoinCounter(canvas)
-        drawAmmoPanel(canvas)
+
+        if (phase == ScenePhase.PLAYING) {
+            drawControls(canvas)
+        }
+    }
+
+    private fun drawHealthPanel(canvas: Canvas, rect: RectF, fighter: Fighter, alignLeft: Boolean) {
+        fillPaint.color = Color.argb(165, 14, 15, 26)
+        canvas.drawRoundRect(rect, dp(18f), dp(18f), fillPaint)
+
+        val padding = dp(14f)
+        val barTop = rect.top + dp(32f)
+        val barHeight = dp(12f)
+        val healthRatio = (fighter.health / fighter.maxHealth).coerceIn(0f, 1f)
+        val energyRatio = (fighter.energy / 100f).coerceIn(0f, 1f)
+        val barRect = RectF(rect.left + padding, barTop, rect.right - padding, barTop + barHeight)
+        fillPaint.color = Color.parseColor("#312E48")
+        canvas.drawRoundRect(barRect, dp(8f), dp(8f), fillPaint)
+        fillPaint.color = if (fighter.side == FighterSide.PLAYER) Color.parseColor("#58D8FF") else Color.parseColor("#FF6675")
+        canvas.drawRoundRect(RectF(barRect.left, barRect.top, barRect.left + barRect.width() * healthRatio, barRect.bottom), dp(8f), dp(8f), fillPaint)
+
+        val energyRect = RectF(barRect.left, barRect.bottom + dp(8f), barRect.right, barRect.bottom + dp(16f))
+        fillPaint.color = Color.parseColor("#262337")
+        canvas.drawRoundRect(energyRect, dp(7f), dp(7f), fillPaint)
+        fillPaint.color = fighter.accent
+        canvas.drawRoundRect(RectF(energyRect.left, energyRect.top, energyRect.left + energyRect.width() * energyRatio, energyRect.bottom), dp(7f), dp(7f), fillPaint)
+
+        textPaint.textSize = sp(13f)
+        textPaint.color = Color.WHITE
+        textPaint.textAlign = if (alignLeft) Paint.Align.LEFT else Paint.Align.RIGHT
+        val nameX = if (alignLeft) rect.left + padding else rect.right - padding
+        canvas.drawText(fighter.name.uppercase(), nameX, rect.top + dp(18f), textPaint)
+
+        textPaint.textSize = sp(11f)
+        textPaint.color = Color.argb(215, 219, 223, 231)
+        canvas.drawText("${fighter.health.toInt()} HP", nameX, rect.bottom - dp(10f), textPaint)
+    }
+
+    private fun drawRoundChip(canvas: Canvas) {
+        val rect = RectF(width * 0.42f, dp(22f), width * 0.58f, dp(66f))
+        buttonPaint.shader = LinearGradient(
+            rect.left,
+            rect.top,
+            rect.right,
+            rect.bottom,
+            Color.parseColor("#A53366"),
+            Color.parseColor("#5E65F5"),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRoundRect(rect, dp(22f), dp(22f), buttonPaint)
+        buttonPaint.shader = null
+
+        centerTextPaint.textSize = sp(12f)
+        centerTextPaint.color = Color.argb(220, 255, 255, 255)
+        canvas.drawText("ROUND $currentRound", rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
+    }
+
+    private fun drawCoinChip(canvas: Canvas) {
+        val rect = RectF(width - dp(132f), dp(30f), width - dp(24f), dp(74f))
+        fillPaint.color = Color.argb(168, 18, 18, 30)
+        canvas.drawRoundRect(rect, dp(22f), dp(22f), fillPaint)
+        centerTextPaint.textSize = sp(11f)
+        centerTextPaint.color = Color.parseColor("#FFD25A")
+        canvas.drawText("$coins", rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
+    }
+
+    private fun drawIconButton(canvas: Canvas, rect: RectF, label: String) {
+        fillPaint.color = Color.argb(150, 14, 18, 28)
+        canvas.drawRoundRect(rect, dp(16f), dp(16f), fillPaint)
+        strokePaint.color = Color.argb(100, 255, 255, 255)
+        strokePaint.strokeWidth = dp(2f)
+        canvas.drawRoundRect(rect, dp(16f), dp(16f), strokePaint)
+        centerTextPaint.textSize = sp(15f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText(label, rect.centerX(), rect.centerY() + dp(5f), centerTextPaint)
+    }
+
+    private fun drawControls(canvas: Canvas) {
+        drawMoveButton(canvas, leftButton, "<", moveLeftHeld)
+        drawMoveButton(canvas, rightButton, ">", moveRightHeld)
+        drawMoveButton(canvas, jumpButton, "UP", jumpHeld)
+
+        drawActionButton(canvas, jabButton, "JAB", moveLeftHeld || moveRightHeld, jabHeld, Color.parseColor("#57D7FF"))
+        drawActionButton(canvas, kickButton, "KICK", false, kickHeld, Color.parseColor("#FF8A65"))
+        val specialLabel = if (player.energy >= 100f) "BURST" else "DASH"
+        drawActionButton(canvas, specialButton, specialLabel, player.energy >= 100f, specialHeld, Color.parseColor("#86FF91"))
+    }
+
+    private fun drawMoveButton(canvas: Canvas, rect: RectF, label: String, active: Boolean) {
+        fillPaint.color = if (active) Color.argb(220, 72, 121, 214) else Color.argb(130, 11, 16, 28)
+        canvas.drawRoundRect(rect, dp(26f), dp(26f), fillPaint)
+        strokePaint.color = if (active) Color.argb(255, 190, 223, 255) else Color.argb(100, 255, 255, 255)
+        strokePaint.strokeWidth = dp(3f)
+        canvas.drawRoundRect(rect, dp(26f), dp(26f), strokePaint)
+        centerTextPaint.textSize = sp(16f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText(label, rect.centerX(), rect.centerY() + dp(6f), centerTextPaint)
+    }
+
+    private fun drawActionButton(canvas: Canvas, rect: RectF, label: String, charged: Boolean, active: Boolean, accent: Int) {
+        val fill = if (active) blendWithWhite(accent, 0.18f) else Color.argb(165, 16, 18, 30)
+        fillPaint.color = fill
+        canvas.drawRoundRect(rect, dp(24f), dp(24f), fillPaint)
+        strokePaint.color = if (charged) accent else Color.argb(110, Color.red(accent), Color.green(accent), Color.blue(accent))
+        strokePaint.strokeWidth = if (charged) dp(4f) else dp(2.5f)
+        canvas.drawRoundRect(rect, dp(24f), dp(24f), strokePaint)
+        centerTextPaint.textSize = sp(13f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText(label, rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
     }
 
     private fun drawOverlays(canvas: Canvas) {
         when (phase) {
             ScenePhase.TITLE -> drawTitleOverlay(canvas)
             ScenePhase.OPTIONS -> drawOptionsOverlay(canvas)
-            ScenePhase.LEVEL_CLEAR -> drawResultOverlay(
-                canvas = canvas,
-                eyebrow = "BLOCK SECURED",
-                title = "Roofline Clear",
-                description = "Every hostile is down. Cash the bounty, steady your hands, and move to the next shot.",
-                primary = "Next Mission",
-                secondary = "Main Menu",
-                accent = Color.parseColor("#65F4D6"),
-            )
-            ScenePhase.MISSION_FAILED -> drawResultOverlay(
-                canvas = canvas,
-                eyebrow = "MISSION FAILED",
-                title = "Shot Collapsed",
-                description = gameOverReason,
-                primary = "Retry Mission",
-                secondary = "Main Menu",
-                accent = Color.parseColor("#FF7A7A"),
-            )
+            ScenePhase.ROUND_CLEAR, ScenePhase.ROUND_FAILED -> drawResultOverlay(canvas)
             ScenePhase.UPGRADES -> drawUpgradeOverlay(canvas)
             ScenePhase.PLAYING -> Unit
         }
     }
 
-    private fun handleTitleTouch(event: MotionEvent) {
-        if (event.actionMasked != MotionEvent.ACTION_UP) return
-        when {
-            titleButton.contains(event.x, event.y) -> {
-                stats = PlayerStats()
-                coins = 0
-                bestCombo = 0
-                currentLevel = 1
-                buildMission(currentLevel, keepStats = false)
-            }
+    private fun drawTitleOverlay(canvas: Canvas) {
+        fillPaint.color = Color.argb(145, 6, 7, 13)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
 
-            optionsButton.contains(event.x, event.y) -> {
-                optionsReturnPhase = ScenePhase.TITLE
-                phase = ScenePhase.OPTIONS
-                message = "Tune the mission pace and aiming feel before you deploy."
-            }
-        }
-    }
+        val card = RectF(width * 0.08f, height * 0.12f, width * 0.54f, height * 0.9f)
+        fillPaint.color = Color.argb(180, 15, 16, 28)
+        canvas.drawRoundRect(card, dp(32f), dp(32f), fillPaint)
+        strokePaint.color = Color.argb(110, 109, 177, 255)
+        strokePaint.strokeWidth = dp(2f)
+        canvas.drawRoundRect(card, dp(32f), dp(32f), strokePaint)
 
-    private fun handleOptionsTouch(event: MotionEvent) {
-        if (event.actionMasked != MotionEvent.ACTION_UP) return
-        when {
-            paceToggleButton.contains(event.x, event.y) -> {
-                gameOptions.tacticalPace = !gameOptions.tacticalPace
-            }
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.color = Color.parseColor("#7EDBFF")
+        textPaint.textSize = sp(13f)
+        canvas.drawText("ORIGINAL 2D FIGHTER", card.left + dp(28f), card.top + dp(42f), textPaint)
 
-            aimGuideToggleButton.contains(event.x, event.y) -> {
-                gameOptions.aimGuide = !gameOptions.aimGuide
-            }
+        textPaint.color = Color.WHITE
+        textPaint.textSize = sp(31f)
+        canvas.drawText("Skyline Stick Clash", card.left + dp(28f), card.top + dp(94f), textPaint)
 
-            screenShakeToggleButton.contains(event.x, event.y) -> {
-                gameOptions.screenShake = !gameOptions.screenShake
-            }
-
-            optionsBackButton.contains(event.x, event.y) -> {
-                closeOptions()
-            }
-        }
-    }
-
-    private fun handlePlayingTouch(event: MotionEvent) {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                if (hudOptionsButton.contains(event.x, event.y)) {
-                    isAiming = false
-                    touchPointerId = MotionEvent.INVALID_POINTER_ID
-                    optionsReturnPhase = ScenePhase.PLAYING
-                    phase = ScenePhase.OPTIONS
-                    return
-                }
-
-                if (reloadButton.contains(event.x, event.y)) {
-                    beginReload()
-                    return
-                }
-
-                touchPointerId = event.getPointerId(0)
-                isAiming = true
-                aimPointer.set(event.x, event.y)
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                val index = event.findPointerIndex(touchPointerId)
-                if (index >= 0 && isAiming) {
-                    aimPointer.set(event.getX(index), event.getY(index))
-                }
-            }
-
-            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
-                if (isAiming) {
-                    aimPointer.set(event.x, event.y)
-                    fireToward(event.x, event.y)
-                }
-                isAiming = false
-                touchPointerId = MotionEvent.INVALID_POINTER_ID
-            }
-        }
-    }
-
-    private fun handleOverlayTouch(event: MotionEvent, continueAction: Boolean) {
-        if (event.actionMasked != MotionEvent.ACTION_UP) return
-        when {
-            primaryButton.contains(event.x, event.y) -> {
-                if (continueAction) {
-                    if (currentLevel % 2 == 0) {
-                        buildUpgrades()
-                    } else {
-                        currentLevel += 1
-                        buildMission(currentLevel, keepStats = true)
-                    }
-                } else {
-                    buildMission(currentLevel, keepStats = true)
-                }
-            }
-            secondaryButton.contains(event.x, event.y) -> resetToTitle()
-        }
-    }
-
-    private fun handleUpgradeTouch(event: MotionEvent) {
-        if (event.actionMasked != MotionEvent.ACTION_UP) return
-        val card = upgradeCards.firstOrNull { it.rect.contains(event.x, event.y) } ?: return
-        applyUpgrade(card.type)
-    }
-
-    private fun buildMission(level: Int, keepStats: Boolean) {
-        if (!layoutReady) return
-
-        if (!keepStats) {
-            stats = PlayerStats()
-            coins = 0
-            bestCombo = 0
-        }
-
-        phase = ScenePhase.PLAYING
-        currentLevel = level
-        rooftops.clear()
-        actors.clear()
-        projectiles.clear()
-        particles.clear()
-        upgradeCards.clear()
-        combo = 0
-        enemiesRemaining = 0
-        currentAmmo = stats.magazineSize
-        shotCooldown = 0f
-        reloadRemaining = 0f
-        missionTime = 0f
-        alertTriggered = false
-        hasMissionStarted = false
-        gameOverReason = ""
-
-        val leftRoofTop = height * 0.84f
-        val enemyTops = floatArrayOf(height * 0.77f, height * 0.69f, height * 0.61f, height * 0.53f)
-        rooftops += Rooftop(
-            left = width * 0.24f,
-            right = width * 0.56f,
-            top = leftRoofTop,
-            exitLeft = width * 0.18f,
-            exitRight = width * 0.62f,
-            accent = Color.parseColor("#B47C52"),
+        textPaint.textSize = sp(14f)
+        textPaint.color = Color.argb(225, 235, 236, 241)
+        drawMultilineText(
+            canvas = canvas,
+            text = "A fast original stickman arena brawler for Android. Chain clean jabs, kicks, air bursts, and build your own fight path round after round.",
+            left = card.left + dp(28f),
+            top = card.top + dp(128f),
+            maxWidth = card.width() - dp(56f),
+            lineHeight = dp(24f),
+            paint = textPaint,
         )
 
-        val accents = listOf("#B7CBDD", "#E7BE74", "#DCCAA4", "#CCD7E4")
-        val centers = listOf(0.18f, 0.38f, 0.60f, 0.82f)
-        centers.forEachIndexed { index, fraction ->
-            val roofWidth = width * (0.11f + random.nextFloat() * 0.05f)
-            val centerX = width * fraction
-            rooftops += Rooftop(
-                left = centerX - roofWidth * 0.5f,
-                right = centerX + roofWidth * 0.5f,
-                top = enemyTops[index],
-                exitLeft = centerX - roofWidth * 0.5f - dp(24f),
-                exitRight = centerX + roofWidth * 0.5f + dp(24f),
-                accent = Color.parseColor(accents[index % accents.size]),
-            )
-        }
+        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(290f), "Touch controls built for phones")
+        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(346f), "Arcade rounds with upgrade choices")
+        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(402f), "Original stickman combat feel")
 
-        playerPosition = PointF(width * 0.44f, height * 0.84f)
-        aimPointer = PointF(width * 0.67f, height * 0.42f)
+        drawMenuButton(canvas, playButton, "Start Fight", "ENTER ARENA", Color.parseColor("#64E6A2"))
+        drawMenuButton(canvas, optionsButton, "Options", "TUNE MATCH", Color.parseColor("#74A9FF"))
 
-        val enemyCount = min(2 + level / 2, 6)
-        val civilianCount = when {
-            level < 2 -> 0
-            level < 5 -> 1
-            else -> 2
-        }
-        val paceSpeed = if (gameOptions.tacticalPace) 30f else 48f
-        val paceDelay = if (gameOptions.tacticalPace) 1.2f else 0.45f
-
-        val spots = mutableListOf<Pair<Int, Float>>()
-        rooftops.drop(1).forEachIndexed { index, roof ->
-            val roofIndex = index + 1
-            spots += roofIndex to (roof.left + roof.width * 0.24f)
-            spots += roofIndex to roof.centerX
-            spots += roofIndex to (roof.right - roof.width * 0.24f)
-        }
-        spots.shuffle(random)
-
-        repeat(enemyCount) {
-            val (roofIndex, x) = spots.removeAt(0)
-            val roof = rooftops[roofIndex]
-            val style = buildActorPalette(isEnemy = true)
-            actors += Actor(
-                role = ActorRole.ENEMY,
-                roofIndex = roofIndex,
-                radius = dp(20f),
-                walkSpeed = dp(paceSpeed + currentLevel * 2.6f),
-                skinTone = style[0],
-                shirtColor = style[1],
-                pantsColor = style[2],
-                hairColor = style[3],
-                x = x,
-                y = roof.top,
-                targetX = if (x < roof.centerX) roof.exitLeft else roof.exitRight,
-                reactionDelay = paceDelay + random.nextFloat() * 1.15f,
-            )
-            enemiesRemaining += 1
-        }
-
-        repeat(min(civilianCount, spots.size)) {
-            val (roofIndex, x) = spots.removeAt(0)
-            val roof = rooftops[roofIndex]
-            val style = buildActorPalette(isEnemy = false)
-            actors += Actor(
-                role = ActorRole.CIVILIAN,
-                roofIndex = roofIndex,
-                radius = dp(18f),
-                walkSpeed = 0f,
-                skinTone = style[0],
-                shirtColor = style[1],
-                pantsColor = style[2],
-                hairColor = style[3],
-                x = x,
-                y = roof.top,
-                targetX = x,
-                reactionDelay = 0f,
-            )
-        }
-
-        message = "Mission $currentLevel. Breathe, track the criminals, protect civilians, and take the clean shot."
-        rebuildUiLayout()
+        drawHeroSilhouette(canvas)
     }
 
-    private fun updateActors(dt: Float) {
-        actors.forEach { actor ->
-            if (!actor.isAlive) return@forEach
-            actor.animationTime += dt
+    private fun drawOptionsOverlay(canvas: Canvas) {
+        fillPaint.color = Color.argb(165, 8, 10, 16)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
 
-            if (actor.role == ActorRole.CIVILIAN) {
-                actor.crouchAmount = if (alertTriggered) min(1f, actor.crouchAmount + dt * 1.8f) else max(0f, actor.crouchAmount - dt)
-                return@forEach
-            }
+        val card = RectF(width * 0.28f, height * 0.2f, width * 0.72f, height * 0.82f)
+        fillPaint.color = Color.parseColor("#FBFCFF")
+        canvas.drawRoundRect(card, dp(28f), dp(28f), fillPaint)
+        fillPaint.color = Color.parseColor("#67A8FF")
+        canvas.drawRoundRect(RectF(card.left, card.top, card.right, card.top + dp(78f)), dp(28f), dp(28f), fillPaint)
+        fillPaint.color = Color.parseColor("#67A8FF")
+        canvas.drawRect(card.left, card.top + dp(40f), card.right, card.top + dp(78f), fillPaint)
 
-            if (!alertTriggered) return@forEach
-            actor.reactionDelay -= dt
-            if (actor.reactionDelay > 0f) return@forEach
+        centerTextPaint.textSize = sp(20f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText("Fight Options", card.centerX(), card.top + dp(48f), centerTextPaint)
 
-            val direction = if (actor.targetX >= actor.x) 1f else -1f
-            actor.x += direction * actor.walkSpeed * dt
-            if ((direction > 0f && actor.x >= actor.targetX) || (direction < 0f && actor.x <= actor.targetX)) {
-                actor.isAlive = false
-                actor.isEscaped = true
-                triggerMissionFail("A target slipped off the roof. Mission blown.")
-            }
-        }
+        drawOptionRow(canvas, shakeToggleButton, "Cinematic Shake", options.cinematicShake, Color.parseColor("#67B5FF"))
+        drawOptionRow(canvas, pauseToggleButton, "Hit Pause", options.hitPause, Color.parseColor("#FF7D8C"))
+        drawOptionRow(canvas, chillToggleButton, "Chill Mode", options.chillMode, Color.parseColor("#7CE39C"))
+        drawMenuButton(canvas, optionsBackButton, "Back", "RETURN", Color.parseColor("#6C87FF"))
     }
 
-    private fun updateProjectiles(dt: Float) {
-        val iterator = projectiles.iterator()
-        while (iterator.hasNext()) {
-            val projectile = iterator.next()
-            projectile.life -= dt
-            projectile.previousX = projectile.x
-            projectile.previousY = projectile.y
-            projectile.x += projectile.vx * dt
-            projectile.y += projectile.vy * dt
+    private fun drawResultOverlay(canvas: Canvas) {
+        fillPaint.color = Color.argb(145, 7, 9, 16)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
 
-            val hit = firstHitActor(projectile)
-            if (hit != null) {
-                handleActorHit(hit)
-                iterator.remove()
-                continue
-            }
+        val card = RectF(width * 0.25f, height * 0.2f, width * 0.75f, height * 0.82f)
+        fillPaint.color = Color.argb(225, 17, 18, 31)
+        canvas.drawRoundRect(card, dp(28f), dp(28f), fillPaint)
+        strokePaint.color = if (phase == ScenePhase.ROUND_CLEAR) Color.parseColor("#70E6A6") else Color.parseColor("#FF7889")
+        strokePaint.strokeWidth = dp(3f)
+        canvas.drawRoundRect(card, dp(28f), dp(28f), strokePaint)
 
-            val offscreen =
-                projectile.x < -dp(80f) ||
-                    projectile.x > width + dp(80f) ||
-                    projectile.y < -dp(80f) ||
-                    projectile.y > height + dp(80f)
-            if (projectile.life <= 0f || offscreen) {
-                iterator.remove()
-            }
-        }
-    }
+        centerTextPaint.textSize = sp(13f)
+        centerTextPaint.color = if (phase == ScenePhase.ROUND_CLEAR) Color.parseColor("#87FFC8") else Color.parseColor("#FF8D9A")
+        canvas.drawText(resultEyebrow, card.centerX(), card.top + dp(42f), centerTextPaint)
 
-    private fun beginReload() {
-        if (reloadRemaining > 0f || currentAmmo == stats.magazineSize) return
-        reloadRemaining = stats.reloadTime
-        message = "Reloading. Keep your head down."
-    }
+        centerTextPaint.textSize = sp(28f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText(resultTitle, card.centerX(), card.top + dp(98f), centerTextPaint)
 
-    private fun fireToward(targetX: Float, targetY: Float) {
-        if (phase != ScenePhase.PLAYING || shotCooldown > 0f || reloadRemaining > 0f) return
-        if (currentAmmo <= 0) {
-            beginReload()
-            return
-        }
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = sp(15f)
+        textPaint.color = Color.argb(230, 232, 234, 242)
+        drawMultilineText(canvas, resultDescription, card.left + dp(36f), card.top + dp(138f), card.width() - dp(72f), dp(24f), textPaint, centered = true)
 
-        alertTriggered = true
-        currentAmmo -= 1
-        shotCooldown = 0.22f
-        recoilKick = 1f
-        screenShake = if (gameOptions.screenShake) dp(12f) else 0f
+        centerTextPaint.textSize = sp(14f)
+        centerTextPaint.color = Color.parseColor("#FFD873")
+        canvas.drawText("Coins $coins    Best Combo x$bestCombo", card.centerX(), card.bottom - dp(132f), centerTextPaint)
 
-        val muzzle = computeMuzzlePoint()
-        playerMuzzle = muzzle
-        val angle = atan2(targetY - muzzle.y, targetX - muzzle.x)
-        val spread = (random.nextFloat() - 0.5f) * stats.spreadRadians
-        val shotAngle = angle + spread
-        val speed = dp(1750f)
-        projectiles += Projectile(
-            x = muzzle.x,
-            y = muzzle.y,
-            previousX = muzzle.x,
-            previousY = muzzle.y,
-            vx = cos(shotAngle) * speed,
-            vy = sin(shotAngle) * speed,
+        drawMenuButton(
+            canvas,
+            primaryButton,
+            if (phase == ScenePhase.ROUND_CLEAR) "Continue" else "Retry",
+            if (phase == ScenePhase.ROUND_CLEAR) "NEXT ROUND" else "RUN IT BACK",
+            if (phase == ScenePhase.ROUND_CLEAR) Color.parseColor("#6FE7A8") else Color.parseColor("#FF8D9A"),
         )
-        spawnImpact(muzzle.x, muzzle.y, enemyImpact = true, small = true)
+        drawMenuButton(canvas, secondaryButton, "Main Menu", "LEAVE ARENA", Color.parseColor("#74A9FF"))
+    }
 
-        if (currentAmmo == 0) {
-            beginReload()
-        } else {
-            message = "Shot out. Targets are moving."
+    private fun drawUpgradeOverlay(canvas: Canvas) {
+        fillPaint.color = Color.argb(130, 8, 10, 16)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
+
+        centerTextPaint.textSize = sp(13f)
+        centerTextPaint.color = Color.parseColor("#8CE3FF")
+        canvas.drawText("UPGRADE BREAK", width * 0.5f, height * 0.18f, centerTextPaint)
+        centerTextPaint.textSize = sp(26f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText("Choose Your Edge", width * 0.5f, height * 0.24f, centerTextPaint)
+
+        upgradeCards.forEach { card ->
+            fillPaint.color = Color.argb(228, 18, 19, 31)
+            canvas.drawRoundRect(card.rect, dp(28f), dp(28f), fillPaint)
+            strokePaint.color = card.accent
+            strokePaint.strokeWidth = dp(3f)
+            canvas.drawRoundRect(card.rect, dp(28f), dp(28f), strokePaint)
+
+            fillPaint.color = Color.argb(42, Color.red(card.accent), Color.green(card.accent), Color.blue(card.accent))
+            canvas.drawRoundRect(RectF(card.rect.left, card.rect.top, card.rect.right, card.rect.top + dp(56f)), dp(28f), dp(28f), fillPaint)
+
+            textPaint.textAlign = Paint.Align.LEFT
+            textPaint.textSize = sp(18f)
+            textPaint.color = Color.WHITE
+            canvas.drawText(card.type.label, card.rect.left + dp(22f), card.rect.top + dp(38f), textPaint)
+
+            textPaint.textSize = sp(13f)
+            textPaint.color = Color.argb(230, 229, 232, 239)
+            drawMultilineText(
+                canvas = canvas,
+                text = card.type.blurb,
+                left = card.rect.left + dp(22f),
+                top = card.rect.top + dp(84f),
+                maxWidth = card.rect.width() - dp(44f),
+                lineHeight = dp(22f),
+                paint = textPaint,
+            )
+
+            val innerButton = RectF(card.rect.left + dp(18f), card.rect.bottom - dp(64f), card.rect.right - dp(18f), card.rect.bottom - dp(18f))
+            drawMenuButton(canvas, innerButton, "Equip", "LOCK IN", card.accent)
         }
     }
 
-    private fun triggerMissionFail(reason: String) {
-        if (phase != ScenePhase.PLAYING) return
-        combo = 0
-        message = reason
-        gameOverReason = reason
-        phase = ScenePhase.MISSION_FAILED
-        rebuildUiLayout()
+    private fun drawMenuButton(canvas: Canvas, rect: RectF, title: String, subtitle: String, accent: Int) {
+        buttonPaint.shader = LinearGradient(
+            rect.left,
+            rect.top,
+            rect.right,
+            rect.bottom,
+            Color.argb(235, 32, 37, 57),
+            Color.argb(235, 18, 21, 33),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRoundRect(rect, dp(28f), dp(28f), buttonPaint)
+        buttonPaint.shader = null
+
+        strokePaint.color = accent
+        strokePaint.strokeWidth = dp(3f)
+        canvas.drawRoundRect(rect, dp(28f), dp(28f), strokePaint)
+
+        centerTextPaint.textSize = sp(18f)
+        centerTextPaint.color = Color.WHITE
+        canvas.drawText(title, rect.centerX(), rect.centerY() - dp(2f), centerTextPaint)
+        centerTextPaint.textSize = sp(10f)
+        centerTextPaint.color = Color.argb(210, 214, 222, 232)
+        canvas.drawText(subtitle, rect.centerX(), rect.centerY() + dp(16f), centerTextPaint)
     }
 
-    private fun buildUpgrades() {
-        phase = ScenePhase.UPGRADES
-        upgradeCards.clear()
-        val options = UpgradeType.entries.shuffled(random).take(3)
-        val cardWidth = width * 0.22f
-        val cardHeight = height * 0.3f
-        val spacing = width * 0.04f
-        val startX = (width - (cardWidth * 3 + spacing * 2)) * 0.5f
-        val top = height * 0.34f
-        val accents = listOf(Color.parseColor("#36CFC9"), Color.parseColor("#7C4DFF"), Color.parseColor("#FFB74D"))
-        options.forEachIndexed { index, type ->
-            val left = startX + index * (cardWidth + spacing)
-            upgradeCards += UpgradeCard(
-                type = type,
-                rect = RectF(left, top, left + cardWidth, top + cardHeight),
-                accent = accents[index % accents.size],
-            )
-        }
-        message = "Choose your next edge before the next rooftop opens up."
-        rebuildUiLayout()
+    private fun drawOptionRow(canvas: Canvas, rect: RectF, label: String, enabled: Boolean, accent: Int) {
+        fillPaint.color = Color.parseColor("#EEF2FF")
+        canvas.drawRoundRect(rect, dp(20f), dp(20f), fillPaint)
+        strokePaint.color = Color.argb(35, 0, 0, 0)
+        strokePaint.strokeWidth = dp(1.5f)
+        canvas.drawRoundRect(rect, dp(20f), dp(20f), strokePaint)
+
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = sp(15f)
+        textPaint.color = Color.parseColor("#131B2A")
+        canvas.drawText(label, rect.left + dp(18f), rect.centerY() + dp(5f), textPaint)
+        drawMiniToggle(canvas, RectF(rect.right - dp(86f), rect.centerY() - dp(16f), rect.right - dp(18f), rect.centerY() + dp(16f)), enabled, accent)
     }
 
-    private fun applyUpgrade(type: UpgradeType) {
-        when (type) {
-            UpgradeType.MAGAZINE -> stats.magazineSize += 1
-            UpgradeType.FAST_HANDS -> stats.reloadTime = max(0.6f, stats.reloadTime - 0.15f)
-            UpgradeType.FOCUS -> stats.focusFactor = max(0.5f, stats.focusFactor - 0.08f)
-            UpgradeType.PRECISION -> stats.spreadRadians = max(0.01f, stats.spreadRadians - 0.005f)
-            UpgradeType.PAYOUT -> stats.bountyMultiplier += 0.15f
-        }
-        currentLevel += 1
-        buildMission(currentLevel, keepStats = true)
+    private fun drawMiniToggle(canvas: Canvas, rect: RectF, enabled: Boolean, accent: Int) {
+        fillPaint.color = if (enabled) accent else Color.parseColor("#CCD2E4")
+        canvas.drawRoundRect(rect, dp(18f), dp(18f), fillPaint)
+        val knobRadius = dp(12f)
+        val cx = if (enabled) rect.right - dp(18f) else rect.left + dp(18f)
+        fillPaint.color = Color.WHITE
+        canvas.drawCircle(cx, rect.centerY(), knobRadius, fillPaint)
     }
 
-    private fun firstHitActor(projectile: Projectile): Actor? {
-        var closestActor: Actor? = null
-        var closestDistance = Float.MAX_VALUE
+    private fun drawFeatureStrip(canvas: Canvas, left: Float, top: Float, text: String) {
+        fillPaint.color = Color.argb(190, 18, 24, 36)
+        val rect = RectF(left, top, left + width * 0.34f, top + dp(38f))
+        canvas.drawRoundRect(rect, dp(18f), dp(18f), fillPaint)
+        fillPaint.color = Color.parseColor("#77EDAB")
+        canvas.drawCircle(left + dp(18f), rect.centerY(), dp(5f), fillPaint)
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = sp(13f)
+        textPaint.color = Color.WHITE
+        canvas.drawText(text, left + dp(34f), rect.centerY() + dp(4f), textPaint)
+    }
 
-        actors.forEach { actor ->
-            if (!actor.isAlive) return@forEach
-            val bodyCenterY = actor.y - actor.radius * 1.2f - actor.crouchAmount * actor.radius * 0.3f
-            val headCenterY = bodyCenterY - actor.radius * 0.9f
-            val bodyDistance = segmentDistanceSquared(
-                projectile.previousX,
-                projectile.previousY,
-                projectile.x,
-                projectile.y,
-                actor.x,
-                bodyCenterY,
-            )
-            val headDistance = segmentDistanceSquared(
-                projectile.previousX,
-                projectile.previousY,
-                projectile.x,
-                projectile.y,
-                actor.x,
-                headCenterY,
-            )
-            val limit = actor.radius * actor.radius
-            if (bodyDistance <= limit || headDistance <= limit * 0.55f) {
-                val dist = hypot(projectile.previousX - actor.x, projectile.previousY - bodyCenterY)
-                if (dist < closestDistance) {
-                    closestDistance = dist
-                    closestActor = actor
-                }
+    private fun drawHeroSilhouette(canvas: Canvas) {
+        val baseX = width * 0.76f
+        val baseY = height * 0.76f
+        fillPaint.color = Color.argb(72, 124, 232, 255)
+        canvas.drawCircle(baseX - dp(12f), baseY - dp(126f), dp(62f), fillPaint)
+        drawShowcaseStick(canvas, baseX, baseY, 1f, Color.parseColor("#F3F7FF"), Color.parseColor("#69D9FF"))
+        drawShowcaseStick(canvas, width * 0.12f, height * 0.84f, -1f, Color.parseColor("#FFECE8"), Color.parseColor("#FF7B8C"), scale = 0.72f)
+    }
+
+    private fun drawShowcaseStick(canvas: Canvas, x: Float, y: Float, facing: Float, skin: Int, accent: Int, scale: Float = 1f) {
+        val head = dp(20f) * scale
+        strokePaint.color = Color.parseColor("#172033")
+        strokePaint.strokeWidth = dp(10f) * scale
+        canvas.drawLine(x, y - dp(126f) * scale, x, y - dp(54f) * scale, strokePaint)
+        canvas.drawLine(x, y - dp(106f) * scale, x + facing * dp(38f) * scale, y - dp(134f) * scale, strokePaint)
+        canvas.drawLine(x, y - dp(98f) * scale, x - facing * dp(28f) * scale, y - dp(74f) * scale, strokePaint)
+        canvas.drawLine(x, y - dp(54f) * scale, x + facing * dp(24f) * scale, y, strokePaint)
+        canvas.drawLine(x, y - dp(54f) * scale, x - facing * dp(18f) * scale, y, strokePaint)
+        fillPaint.color = skin
+        canvas.drawCircle(x, y - dp(146f) * scale, head, fillPaint)
+        strokePaint.color = Color.parseColor("#172033")
+        strokePaint.strokeWidth = dp(4f) * scale
+        canvas.drawCircle(x, y - dp(146f) * scale, head, strokePaint)
+        strokePaint.color = accent
+        strokePaint.strokeWidth = dp(4f) * scale
+        canvas.drawLine(x - facing * dp(10f) * scale, y - dp(150f) * scale, x + facing * dp(14f) * scale, y - dp(146f) * scale, strokePaint)
+    }
+
+    private fun drawCloud(canvas: Canvas, x: Float, y: Float, size: Float) {
+        canvas.drawCircle(x, y, size * 0.34f, fillPaint)
+        canvas.drawCircle(x + size * 0.26f, y - size * 0.08f, size * 0.28f, fillPaint)
+        canvas.drawCircle(x + size * 0.52f, y, size * 0.24f, fillPaint)
+        canvas.drawRoundRect(RectF(x - size * 0.18f, y, x + size * 0.64f, y + size * 0.2f), size * 0.12f, size * 0.12f, fillPaint)
+    }
+
+    private fun drawMultilineText(
+        canvas: Canvas,
+        text: String,
+        left: Float,
+        top: Float,
+        maxWidth: Float,
+        lineHeight: Float,
+        paint: Paint,
+        centered: Boolean = false,
+    ) {
+        val words = text.split(" ")
+        val lines = mutableListOf<String>()
+        val builder = StringBuilder()
+
+        for (word in words) {
+            val candidate = if (builder.isEmpty()) word else "${builder} $word"
+            if (paint.measureText(candidate) > maxWidth && builder.isNotEmpty()) {
+                lines += builder.toString()
+                builder.clear()
+                builder.append(word)
+            } else {
+                if (builder.isNotEmpty()) builder.append(" ")
+                builder.append(word)
             }
         }
+        if (builder.isNotEmpty()) lines += builder.toString()
 
-        return closestActor
+        lines.forEachIndexed { index, line ->
+            val x = if (centered) left + maxWidth * 0.5f else left
+            canvas.drawText(line, x, top + index * lineHeight, paint)
+        }
     }
 
-    private fun handleActorHit(actor: Actor) {
-        actor.isAlive = false
-        combo += 1
-        bestCombo = max(bestCombo, combo)
-        screenShake = if (gameOptions.screenShake) dp(10f) else 0f
-        recoilKick = 1f
-        spawnImpact(actor.x, actor.y - actor.radius, actor.role == ActorRole.ENEMY)
-
-        if (actor.role == ActorRole.CIVILIAN) {
-            triggerMissionFail("You hit a civilian. Abort and reset the block.")
-            return
+    private fun spawnImpact(x: Float, y: Float, accent: Int, strong: Boolean) {
+        val count = if (strong) 18 else 10
+        repeat(count) {
+            val vx = random.nextFloat() * dp(if (strong) 320f else 180f) - dp(if (strong) 160f else 90f)
+            val vy = random.nextFloat() * -dp(if (strong) 240f else 160f)
+            particles += Particle(x, y, vx, vy, dp(if (strong) 6f else 4f), if (strong) 0.42f else 0.28f, accent)
         }
+    }
 
-        enemiesRemaining -= 1
-        coins += (40 * stats.bountyMultiplier).toInt() + currentLevel * 3
-        message = if (enemiesRemaining > 0) {
-            "Target dropped. Keep the angle and clear the block."
-        } else {
-            "Last target down. Rooftop secure."
+    private fun spawnGroundBurst(x: Float, y: Float, accent: Int) {
+        repeat(7) {
+            val vx = random.nextFloat() * dp(160f) - dp(80f)
+            val vy = -random.nextFloat() * dp(110f)
+            particles += Particle(x, y - dp(8f), vx, vy, dp(3.5f), 0.22f, accent)
         }
     }
 
@@ -878,664 +1412,19 @@ class CrimehunterGameView @JvmOverloads constructor(
             particle.life -= dt
             particle.x += particle.vx * dt
             particle.y += particle.vy * dt
-            particle.vy += dp(140f) * dt
-            if (particle.life <= 0f) {
-                iterator.remove()
-            }
+            particle.vy += dp(980f) * dt
+            particle.vx *= 0.98f
+            particle.size *= 0.992f
+            if (particle.life <= 0f) iterator.remove()
         }
     }
 
-    private fun spawnImpact(
-        x: Float,
-        y: Float,
-        enemyImpact: Boolean,
-        small: Boolean = false,
-    ) {
-        val baseColor = if (enemyImpact) Color.parseColor("#FFB347") else Color.parseColor("#E57373")
-        val count = if (small) 6 else 12
-        repeat(count) {
-            val angle = random.nextFloat() * (PI * 2f).toFloat()
-            val speed = dp(if (small) 50f else 140f) * (0.6f + random.nextFloat())
-            particles += Particle(
-                x = x,
-                y = y,
-                vx = cos(angle) * speed,
-                vy = sin(angle) * speed,
-                radius = dp(if (small) 2.5f else 4f),
-                life = if (small) 0.25f else 0.55f,
-                color = baseColor,
-            )
+    private fun approach(current: Float, target: Float, amount: Float): Float {
+        return when {
+            current < target -> min(current + amount, target)
+            current > target -> max(current - amount, target)
+            else -> target
         }
-    }
-
-    private fun computeMuzzlePoint(): PointF {
-        val angle = atan2(aimPointer.y - playerPosition.y, aimPointer.x - playerPosition.x)
-        val shoulderX = playerPosition.x - dp(8f) - cos(angle) * recoilKick * dp(5f)
-        val shoulderY = playerPosition.y - dp(58f) - sin(angle) * recoilKick * dp(5f)
-        return PointF(
-            shoulderX + cos(angle) * dp(88f),
-            shoulderY + sin(angle) * dp(88f),
-        )
-    }
-
-    private fun segmentDistanceSquared(
-        x1: Float,
-        y1: Float,
-        x2: Float,
-        y2: Float,
-        px: Float,
-        py: Float,
-    ): Float {
-        val dx = x2 - x1
-        val dy = y2 - y1
-        if (dx == 0f && dy == 0f) {
-            val distX = px - x1
-            val distY = py - y1
-            return distX * distX + distY * distY
-        }
-        val t = (((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)).coerceIn(0f, 1f)
-        val cx = x1 + dx * t
-        val cy = y1 + dy * t
-        val distX = px - cx
-        val distY = py - cy
-        return distX * distX + distY * distY
-    }
-
-    private fun roofPerspectiveScale(roofIndex: Int): Float {
-        return when (roofIndex) {
-            0 -> 1.08f
-            1 -> 1f
-            2 -> 0.94f
-            3 -> 0.88f
-            else -> 0.82f
-        }
-    }
-
-    private fun drawRoofVolume(canvas: Canvas, rooftop: Rooftop, index: Int) {
-        if (index == 0) {
-            val deck = RectF(rooftop.left, rooftop.top, rooftop.right, height.toFloat())
-            fillPaint.color = Color.parseColor("#344E77")
-            canvas.drawRect(deck, fillPaint)
-            fillPaint.color = Color.parseColor("#4F6FA1")
-            canvas.drawRect(deck.left, deck.top, deck.right, deck.top + dp(16f), fillPaint)
-            strokePaint.color = Color.argb(70, 255, 255, 255)
-            strokePaint.strokeWidth = dp(2f)
-            canvas.drawLine(deck.left, deck.top + dp(16f), deck.right, deck.top + dp(16f), strokePaint)
-            return
-        }
-
-        val frontColor = blendWithWhite(rooftop.accent, 0.12f)
-        val roofColor = shadeColor(rooftop.accent, 0.72f)
-        val capHeight = dp(10f)
-        val buildingRect = RectF(rooftop.left, rooftop.top, rooftop.right, height * 0.62f)
-        fillPaint.color = frontColor
-        canvas.drawRect(buildingRect, fillPaint)
-        fillPaint.color = roofColor
-        canvas.drawRect(buildingRect.left - dp(2f), buildingRect.top - capHeight, buildingRect.right + dp(2f), buildingRect.top, fillPaint)
-        strokePaint.color = Color.argb(60, 0, 0, 0)
-        strokePaint.strokeWidth = dp(1.4f)
-        canvas.drawRect(buildingRect, strokePaint)
-
-        val windowWidth = max(dp(10f), rooftop.width * 0.15f)
-        val windowHeight = dp(18f)
-        val columns = max(2, ((rooftop.width - dp(20f)) / (windowWidth + dp(8f))).toInt())
-        val rowGap = dp(12f)
-        val startLeft = buildingRect.left + (buildingRect.width() - (columns * windowWidth + (columns - 1) * dp(8f))) * 0.5f
-        var rowTop = buildingRect.top + dp(20f)
-        fillPaint.color = Color.parseColor("#7E95B1")
-        while (rowTop + windowHeight < buildingRect.bottom - dp(18f)) {
-            repeat(columns) { column ->
-                val left = startLeft + column * (windowWidth + dp(8f))
-                canvas.drawRoundRect(
-                    RectF(left, rowTop, left + windowWidth, rowTop + windowHeight),
-                    dp(2f),
-                    dp(2f),
-                    fillPaint,
-                )
-            }
-            rowTop += windowHeight + rowGap
-        }
-
-        if (index == 2) {
-            fillPaint.color = shadeColor(frontColor, 0.7f)
-            canvas.drawRect(
-                rooftop.left + rooftop.width * 0.32f,
-                rooftop.top + dp(42f),
-                rooftop.right - rooftop.width * 0.32f,
-                rooftop.top + dp(74f),
-                fillPaint,
-            )
-            strokePaint.color = Color.argb(70, 255, 255, 255)
-            strokePaint.strokeWidth = dp(1.5f)
-            canvas.drawLine(rooftop.left + rooftop.width * 0.28f, rooftop.top + dp(72f), rooftop.right - rooftop.width * 0.28f, rooftop.top + dp(72f), strokePaint)
-        }
-
-        if (index == 3) {
-            fillPaint.color = Color.parseColor("#9D6D55")
-            canvas.drawRoundRect(
-                RectF(rooftop.left + rooftop.width * 0.18f, rooftop.top + dp(20f), rooftop.right - rooftop.width * 0.18f, rooftop.top + dp(34f)),
-                dp(3f),
-                dp(3f),
-                fillPaint,
-            )
-        }
-    }
-
-    private fun drawPlayer(canvas: Canvas) {
-        if (!layoutReady) return
-
-        val shakeX = if (screenShake > 0f) (random.nextFloat() - 0.5f) * screenShake else 0f
-        val shakeY = if (screenShake > 0f) (random.nextFloat() - 0.5f) * screenShake else 0f
-        val baseX = playerPosition.x + shakeX
-        val baseY = playerPosition.y + shakeY
-        val aimAngle = atan2(aimPointer.y - baseY, aimPointer.x - baseX)
-        val recoilOffset = recoilKick * dp(16f)
-
-        val shoulderX = baseX + cos(aimAngle) * dp(6f) - cos(aimAngle) * recoilOffset * 0.2f
-        val shoulderY = baseY - dp(60f) + sin(aimAngle) * dp(2f) - sin(aimAngle) * recoilOffset * 0.2f
-        val rifleLength = dp(96f)
-        playerMuzzle = PointF(
-            shoulderX + cos(aimAngle) * rifleLength,
-            shoulderY + sin(aimAngle) * rifleLength,
-        )
-
-        drawCrate(canvas, baseX - dp(72f), baseY - dp(20f), dp(54f), dp(54f))
-        drawCrate(canvas, baseX + dp(20f), baseY - dp(20f), dp(54f), dp(54f))
-
-        actorPaint.color = Color.parseColor("#F1E9E3")
-        canvas.drawCircle(baseX, baseY - dp(92f), dp(18f), actorPaint)
-        actorPaint.color = Color.parseColor("#1A1F27")
-        canvas.drawArc(RectF(baseX - dp(18f), baseY - dp(105f), baseX + dp(18f), baseY - dp(84f)), 180f, 180f, true, actorPaint)
-
-        actorPaint.color = Color.parseColor("#6B2A2A")
-        canvas.drawRoundRect(RectF(baseX - dp(10f), baseY - dp(76f), baseX + dp(10f), baseY - dp(28f)), dp(10f), dp(10f), actorPaint)
-        actorPaint.color = Color.parseColor("#EFEFEF")
-        canvas.drawRoundRect(RectF(baseX - dp(13f), baseY - dp(74f), baseX + dp(13f), baseY - dp(64f)), dp(8f), dp(8f), actorPaint)
-
-        strokePaint.color = Color.parseColor("#3A2230")
-        strokePaint.strokeWidth = dp(8f)
-        canvas.drawLine(baseX - dp(5f), baseY - dp(28f), baseX - dp(13f), baseY + dp(14f), strokePaint)
-        canvas.drawLine(baseX + dp(5f), baseY - dp(28f), baseX + dp(13f), baseY + dp(14f), strokePaint)
-        canvas.drawLine(baseX - dp(8f), baseY - dp(62f), baseX - dp(30f), baseY - dp(42f), strokePaint)
-        canvas.drawLine(baseX + dp(8f), baseY - dp(62f), baseX + dp(28f), baseY - dp(48f), strokePaint)
-
-        strokePaint.color = Color.parseColor("#231A1A")
-        strokePaint.strokeWidth = dp(9f)
-        canvas.drawLine(shoulderX, shoulderY, playerMuzzle.x, playerMuzzle.y, strokePaint)
-        fillPaint.color = Color.parseColor("#D2A13A")
-        canvas.drawCircle(shoulderX + cos(aimAngle) * dp(22f), shoulderY + sin(aimAngle) * dp(22f), dp(16f), fillPaint)
-        strokePaint.color = Color.parseColor("#3B2704")
-        strokePaint.strokeWidth = dp(2.5f)
-        canvas.drawCircle(shoulderX + cos(aimAngle) * dp(22f), shoulderY + sin(aimAngle) * dp(22f), dp(16f), strokePaint)
-    }
-
-    private fun drawActors(canvas: Canvas) {
-        actors.forEach { actor ->
-            if (!actor.isAlive || actor.isEscaped) return@forEach
-
-            val scale = roofPerspectiveScale(actor.roofIndex)
-            val bodyCenterY = actor.y - actor.radius * (1.1f + (1f - scale) * 0.18f) - actor.crouchAmount * actor.radius * 0.34f
-            val headCenterY = bodyCenterY - actor.radius * 0.92f
-            val torsoTop = bodyCenterY - actor.radius * 0.34f
-            val torsoBottom = bodyCenterY + actor.radius * 0.84f
-            val torsoWidth = actor.radius * (0.66f + scale * 0.06f)
-            val armSwing = sin(actor.animationTime * 4.8f) * actor.radius * 0.08f
-
-            actorPaint.color = Color.argb(58, 6, 10, 14)
-            canvas.drawOval(
-                RectF(
-                    actor.x - actor.radius * 0.55f,
-                    actor.y - actor.radius * 0.12f,
-                    actor.x + actor.radius * 0.55f,
-                    actor.y + actor.radius * 0.16f,
-                ),
-                actorPaint,
-            )
-
-            strokePaint.color = Color.argb(90, 0, 0, 0)
-            strokePaint.strokeWidth = dp(1.6f)
-            actorPaint.color = actor.skinTone
-            canvas.drawCircle(actor.x, headCenterY, actor.radius * 0.44f, actorPaint)
-            canvas.drawCircle(actor.x, headCenterY, actor.radius * 0.44f, strokePaint)
-            actorPaint.color = actor.hairColor
-            canvas.drawArc(
-                RectF(actor.x - actor.radius * 0.48f, headCenterY - actor.radius * 0.52f, actor.x + actor.radius * 0.48f, headCenterY + actor.radius * 0.2f),
-                185f,
-                170f,
-                true,
-                actorPaint,
-            )
-            actorPaint.color = actor.shirtColor
-            canvas.drawRoundRect(
-                RectF(actor.x - torsoWidth, torsoTop, actor.x + torsoWidth, torsoBottom),
-                actor.radius * 0.26f,
-                actor.radius * 0.26f,
-                actorPaint,
-            )
-            canvas.drawRoundRect(
-                RectF(actor.x - torsoWidth, torsoTop, actor.x + torsoWidth, torsoBottom),
-                actor.radius * 0.26f,
-                actor.radius * 0.26f,
-                strokePaint,
-            )
-
-            actorPaint.color = actor.skinTone
-            canvas.drawRect(actor.x - actor.radius * 0.1f, headCenterY + actor.radius * 0.34f, actor.x + actor.radius * 0.1f, torsoTop + actor.radius * 0.1f, actorPaint)
-
-            strokePaint.color = actor.skinTone
-            strokePaint.strokeWidth = actor.radius * 0.18f
-            canvas.drawLine(actor.x - torsoWidth, torsoTop + actor.radius * 0.16f, actor.x - torsoWidth * 1.24f, torsoTop + actor.radius * 0.72f + armSwing, strokePaint)
-            canvas.drawLine(actor.x + torsoWidth, torsoTop + actor.radius * 0.16f, actor.x + torsoWidth * 1.18f, torsoTop + actor.radius * 0.72f - armSwing, strokePaint)
-
-            strokePaint.color = actor.pantsColor
-            strokePaint.strokeWidth = actor.radius * 0.26f
-            canvas.drawLine(actor.x - actor.radius * 0.22f, torsoBottom, actor.x - actor.radius * 0.34f, actor.y, strokePaint)
-            canvas.drawLine(actor.x + actor.radius * 0.22f, torsoBottom, actor.x + actor.radius * 0.34f, actor.y, strokePaint)
-
-            if (actor.role == ActorRole.ENEMY) {
-                actorPaint.color = Color.parseColor("#0F141A")
-                canvas.drawRoundRect(
-                    RectF(actor.x + torsoWidth * 0.18f, torsoTop + actor.radius * 0.18f, actor.x + torsoWidth * 1.18f, torsoTop + actor.radius * 0.34f),
-                    actor.radius * 0.08f,
-                    actor.radius * 0.08f,
-                    actorPaint,
-                )
-            }
-        }
-    }
-
-    private fun drawProjectiles(canvas: Canvas) {
-        strokePaint.color = Color.parseColor("#FFD166")
-        strokePaint.strokeWidth = dp(4f)
-        projectiles.forEach { projectile ->
-            canvas.drawLine(projectile.previousX, projectile.previousY, projectile.x, projectile.y, strokePaint)
-            fillPaint.color = Color.WHITE
-            canvas.drawCircle(projectile.x, projectile.y, dp(4f), fillPaint)
-        }
-    }
-
-    private fun drawParticles(canvas: Canvas) {
-        particles.forEach { particle ->
-            fillPaint.color = particle.color
-            fillPaint.alpha = (particle.life * 255).toInt().coerceIn(0, 255)
-            canvas.drawCircle(particle.x, particle.y, particle.radius, fillPaint)
-        }
-        fillPaint.alpha = 255
-    }
-
-    private fun drawScope(canvas: Canvas) {
-        val radius = min(width, height) * 0.16f
-        fillPaint.color = Color.argb(40, 255, 255, 255)
-        canvas.drawCircle(aimPointer.x, aimPointer.y, radius - dp(6f), fillPaint)
-        strokePaint.color = Color.BLACK
-        strokePaint.strokeWidth = dp(8f)
-        canvas.drawCircle(aimPointer.x, aimPointer.y, radius, strokePaint)
-        strokePaint.strokeWidth = dp(3f)
-        canvas.drawLine(aimPointer.x - radius, aimPointer.y, aimPointer.x - dp(22f), aimPointer.y, strokePaint)
-        canvas.drawLine(aimPointer.x + dp(22f), aimPointer.y, aimPointer.x + radius, aimPointer.y, strokePaint)
-        canvas.drawLine(aimPointer.x, aimPointer.y - radius, aimPointer.x, aimPointer.y - dp(22f), strokePaint)
-        canvas.drawLine(aimPointer.x, aimPointer.y + dp(22f), aimPointer.x, aimPointer.y + radius, strokePaint)
-        fillPaint.color = Color.parseColor("#E94A3F")
-        canvas.drawCircle(aimPointer.x, aimPointer.y, dp(4f), fillPaint)
-        if (gameOptions.aimGuide) {
-            strokePaint.color = Color.argb(70, 0, 0, 0)
-            strokePaint.strokeWidth = dp(2f)
-            canvas.drawLine(playerMuzzle.x, playerMuzzle.y, aimPointer.x, aimPointer.y, strokePaint)
-        }
-    }
-
-    private fun drawAmmoPanel(canvas: Canvas) {
-        val rect = RectF(dp(22f), height - dp(88f), dp(146f), height - dp(24f))
-        cardPaint.color = Color.argb(210, 12, 16, 22)
-        canvas.drawRoundRect(rect, dp(22f), dp(22f), cardPaint)
-        strokePaint.color = Color.argb(90, 255, 255, 255)
-        strokePaint.strokeWidth = dp(1.8f)
-        canvas.drawRoundRect(rect, dp(22f), dp(22f), strokePaint)
-
-        textPaint.textSize = sp(11f)
-        textPaint.color = Color.parseColor("#F7F8FA")
-        canvas.drawText("AMMO", rect.left + dp(16f), rect.top + dp(18f), textPaint)
-
-        val bulletGap = dp(14f)
-        val bulletTop = rect.top + dp(28f)
-        repeat(stats.magazineSize) { index ->
-            val left = rect.left + dp(16f) + index * bulletGap
-            fillPaint.color = if (index < currentAmmo) Color.parseColor("#FFD94D") else Color.argb(70, 255, 255, 255)
-            canvas.drawRoundRect(RectF(left, bulletTop, left + dp(8f), bulletTop + dp(18f)), dp(3f), dp(3f), fillPaint)
-        }
-
-        drawButton(canvas, reloadButton, if (reloadRemaining > 0f) "Reloading" else "Reload", Color.parseColor("#F4C63D"), if (reloadRemaining > 0f) "${(100 * (1f - reloadRemaining / stats.reloadTime)).toInt()}%" else "tap")
-    }
-
-    private fun drawTitleOverlay(canvas: Canvas) {
-        fillPaint.color = Color.argb(72, 0, 0, 0)
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-
-        val card = RectF(width * 0.1f, height * 0.12f, width * 0.5f, height * 0.58f)
-        cardPaint.color = Color.argb(206, 21, 33, 52)
-        canvas.drawRoundRect(card, dp(24f), dp(24f), cardPaint)
-        cardPaint.shader = null
-        strokePaint.color = Color.argb(120, 160, 210, 255)
-        strokePaint.strokeWidth = dp(1.8f)
-        canvas.drawRoundRect(card, dp(24f), dp(24f), strokePaint)
-
-        centerTextPaint.textAlign = Paint.Align.LEFT
-        centerTextPaint.textSize = sp(13f)
-        centerTextPaint.color = Color.parseColor("#BCE4FF")
-        canvas.drawText("CRIMEHUNTER", card.left + dp(24f), card.top + dp(34f), centerTextPaint)
-
-        textPaint.textSize = sp(34f)
-        textPaint.color = Color.WHITE
-        canvas.drawText("Sniper Ops", card.left + dp(24f), card.top + dp(76f), textPaint)
-
-        textPaint.textSize = sp(15f)
-        textPaint.color = Color.parseColor("#E5F1FF")
-        drawMultilineText(canvas, "A clean 2D sniper game. Track thugs across the block, protect civilians, and land the shot before the target escapes.", card.left + dp(24f), card.top + dp(112f), card.width() - dp(48f), textPaint, dp(22f))
-
-        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(214f), "Arcade 2D city style")
-        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(254f), "Compact HUD and quick shots")
-        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(294f), "Fast mission restart flow")
-
-        drawButton(canvas, titleButton, "Play", Color.parseColor("#A7F231"), "start")
-        drawButton(canvas, optionsButton, "Options", Color.parseColor("#4BA7FF"), "settings")
-
-        val heroX = width * 0.76f
-        val heroY = height * 0.76f
-        drawCrate(canvas, heroX - dp(70f), heroY - dp(18f), dp(58f), dp(58f))
-        drawCrate(canvas, heroX + dp(22f), heroY - dp(18f), dp(58f), dp(58f))
-        actorPaint.color = Color.parseColor("#F1E9E3")
-        canvas.drawCircle(heroX, heroY - dp(92f), dp(18f), actorPaint)
-        actorPaint.color = Color.parseColor("#18202A")
-        canvas.drawArc(RectF(heroX - dp(18f), heroY - dp(104f), heroX + dp(18f), heroY - dp(82f)), 180f, 180f, true, actorPaint)
-        actorPaint.color = Color.parseColor("#6B2A2A")
-        canvas.drawRoundRect(RectF(heroX - dp(10f), heroY - dp(76f), heroX + dp(10f), heroY - dp(28f)), dp(10f), dp(10f), actorPaint)
-        strokePaint.color = Color.parseColor("#31202F")
-        strokePaint.strokeWidth = dp(8f)
-        canvas.drawLine(heroX - dp(5f), heroY - dp(28f), heroX - dp(13f), heroY + dp(16f), strokePaint)
-        canvas.drawLine(heroX + dp(5f), heroY - dp(28f), heroX + dp(13f), heroY + dp(16f), strokePaint)
-        canvas.drawLine(heroX, heroY - dp(62f), heroX + dp(96f), heroY - dp(96f), strokePaint)
-    }
-
-    private fun drawOptionsOverlay(canvas: Canvas) {
-        fillPaint.color = Color.argb(92, 0, 0, 0)
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-
-        val card = RectF(width * 0.36f, height * 0.24f, width * 0.64f, height * 0.72f)
-        cardPaint.color = Color.parseColor("#F7F7F7")
-        canvas.drawRoundRect(card, dp(18f), dp(18f), cardPaint)
-        cardPaint.shader = null
-        fillPaint.color = Color.parseColor("#2E9BFF")
-        canvas.drawRoundRect(RectF(card.left, card.top, card.right, card.top + dp(34f)), dp(18f), dp(18f), fillPaint)
-        fillPaint.color = Color.parseColor("#F7F7F7")
-        canvas.drawRect(card.left, card.top + dp(17f), card.right, card.top + dp(34f), fillPaint)
-        strokePaint.color = Color.parseColor("#1C222D")
-        strokePaint.strokeWidth = dp(2f)
-        canvas.drawRoundRect(card, dp(18f), dp(18f), strokePaint)
-
-        centerTextPaint.textAlign = Paint.Align.CENTER
-        centerTextPaint.textSize = sp(13f)
-        centerTextPaint.color = Color.WHITE
-        canvas.drawText("SETTINGS", card.centerX(), card.top + dp(23f), centerTextPaint)
-        centerTextPaint.textSize = sp(24f)
-        centerTextPaint.color = Color.parseColor("#1A1C24")
-        canvas.drawText("Game Options", card.centerX(), card.top + dp(72f), centerTextPaint)
-
-        textPaint.textSize = sp(12.5f)
-        textPaint.color = Color.parseColor("#49515E")
-        drawMultilineText(canvas, "Adjust shot feel and comfort.", card.left + dp(28f), card.top + dp(96f), card.width() - dp(56f), textPaint, dp(18f), Paint.Align.CENTER)
-
-        drawToggleRow(canvas, paceToggleButton, "Enemy Pace", if (gameOptions.tacticalPace) "Tactical" else "Fast", "Tactical pace gives you more time to line up each shot.")
-        drawToggleRow(canvas, aimGuideToggleButton, "Aim Guide", if (gameOptions.aimGuide) "On" else "Off", "Show or hide the shot guide while aiming.")
-        drawToggleRow(canvas, screenShakeToggleButton, "Impact Shake", if (gameOptions.screenShake) "On" else "Off", "Reduce camera shake if you want a steadier image.")
-
-        drawButton(canvas, optionsBackButton, "Close", Color.parseColor("#A7F231"), "back")
-    }
-
-    private fun drawResultOverlay(canvas: Canvas, eyebrow: String, title: String, description: String, primary: String, secondary: String, accent: Int) {
-        fillPaint.color = Color.argb(72, 0, 0, 0)
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-
-        val banner = RectF(width * 0.38f, height * 0.1f, width * 0.62f, height * 0.3f)
-        cardPaint.color = Color.argb(220, 33, 37, 56)
-        canvas.drawRoundRect(banner, dp(16f), dp(16f), cardPaint)
-        strokePaint.color = adjustAlpha(accent, 0.95f)
-        strokePaint.strokeWidth = dp(2f)
-        canvas.drawRoundRect(banner, dp(16f), dp(16f), strokePaint)
-
-        centerTextPaint.textAlign = Paint.Align.CENTER
-        centerTextPaint.textSize = sp(15f)
-        centerTextPaint.color = accent
-        canvas.drawText(eyebrow, banner.centerX(), banner.top + dp(38f), centerTextPaint)
-
-        centerTextPaint.textSize = sp(30f)
-        centerTextPaint.color = Color.WHITE
-        canvas.drawText(title, banner.centerX(), banner.top + dp(84f), centerTextPaint)
-
-        textPaint.textSize = sp(14f)
-        textPaint.color = Color.WHITE
-        drawMultilineText(canvas, description, banner.left + dp(22f), banner.top + dp(116f), banner.width() - dp(44f), textPaint, dp(20f), Paint.Align.CENTER)
-
-        centerTextPaint.textSize = sp(15f)
-        centerTextPaint.color = Color.WHITE
-        canvas.drawText("Coins $coins", width * 0.5f, height * 0.72f, centerTextPaint)
-
-        drawButton(canvas, primaryButton, primary, if (phase == ScenePhase.LEVEL_CLEAR) Color.parseColor("#A7F231") else Color.parseColor("#F4C63D"), if (phase == ScenePhase.LEVEL_CLEAR) "next" else "restart")
-        drawButton(canvas, secondaryButton, secondary, Color.parseColor("#4BA7FF"), "menu")
-    }
-
-    private fun drawUpgradeOverlay(canvas: Canvas) {
-        fillPaint.color = Color.argb(160, 3, 6, 10)
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-        centerTextPaint.textAlign = Paint.Align.CENTER
-        centerTextPaint.textSize = sp(14f)
-        centerTextPaint.color = Color.parseColor("#94E1FF")
-        canvas.drawText("MISSION CACHE", width * 0.5f, height * 0.18f, centerTextPaint)
-        centerTextPaint.textSize = sp(30f)
-        centerTextPaint.color = Color.WHITE
-        canvas.drawText("Choose Your Upgrade", width * 0.5f, height * 0.25f, centerTextPaint)
-
-        upgradeCards.forEach { card ->
-            cardPaint.shader = LinearGradient(card.rect.left, card.rect.top, card.rect.right, card.rect.bottom, intArrayOf(Color.parseColor("#111B2F"), Color.parseColor("#09111B")), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
-            canvas.drawRoundRect(card.rect, dp(26f), dp(26f), cardPaint)
-            cardPaint.shader = null
-            strokePaint.color = adjustAlpha(card.accent, 0.9f)
-            strokePaint.strokeWidth = dp(2f)
-            canvas.drawRoundRect(card.rect, dp(26f), dp(26f), strokePaint)
-
-            centerTextPaint.textSize = sp(13f)
-            centerTextPaint.color = card.accent
-            canvas.drawText("UPGRADE", card.rect.centerX(), card.rect.top + dp(34f), centerTextPaint)
-            centerTextPaint.textSize = sp(20f)
-            centerTextPaint.color = Color.WHITE
-            canvas.drawText(card.type.label, card.rect.centerX(), card.rect.top + dp(74f), centerTextPaint)
-
-            textPaint.textSize = sp(13f)
-            textPaint.color = Color.parseColor("#D7E7FF")
-            drawMultilineText(canvas, card.type.blurb, card.rect.left + dp(18f), card.rect.top + dp(112f), card.rect.width() - dp(36f), textPaint, dp(20f), Paint.Align.CENTER)
-            drawButton(canvas, RectF(card.rect.left + dp(18f), card.rect.bottom - dp(72f), card.rect.right - dp(18f), card.rect.bottom - dp(18f)), "Equip", card.accent, "apply")
-        }
-    }
-
-    private fun drawFeatureStrip(canvas: Canvas, x: Float, y: Float, text: String) {
-        fillPaint.color = Color.parseColor("#7CFFCB")
-        canvas.drawCircle(x, y - dp(6f), dp(5f), fillPaint)
-        this.textPaint.textSize = sp(15f)
-        this.textPaint.color = Color.parseColor("#D7E8FF")
-        canvas.drawText(text, x + dp(18f), y, this.textPaint)
-    }
-
-    private fun drawToggleRow(canvas: Canvas, rect: RectF, label: String, value: String, description: String) {
-        cardPaint.color = Color.parseColor("#FFFFFF")
-        canvas.drawRoundRect(rect, dp(16f), dp(16f), cardPaint)
-        strokePaint.color = Color.parseColor("#1C222D")
-        strokePaint.strokeWidth = dp(1.6f)
-        canvas.drawRoundRect(rect, dp(16f), dp(16f), strokePaint)
-
-        textPaint.textSize = sp(13f)
-        textPaint.color = Color.parseColor("#1D212A")
-        canvas.drawText(label, rect.left + dp(18f), rect.centerY() + dp(5f), textPaint)
-
-        drawButton(canvas, RectF(rect.right - dp(114f), rect.top + dp(10f), rect.right - dp(12f), rect.bottom - dp(10f)), value, Color.parseColor("#A7F231"), "toggle")
-    }
-
-    private fun drawButton(canvas: Canvas, rect: RectF, label: String, accent: Int, subtitle: String) {
-        buttonPaint.color = Color.argb(70, 0, 0, 0)
-        canvas.drawRoundRect(
-            RectF(rect.left, rect.top + dp(4f), rect.right, rect.bottom + dp(4f)),
-            dp(16f),
-            dp(16f),
-            buttonPaint,
-        )
-        buttonPaint.shader = LinearGradient(rect.left, rect.top, rect.right, rect.bottom, intArrayOf(blendWithWhite(accent, 0.16f), accent), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
-        canvas.drawRoundRect(rect, dp(16f), dp(16f), buttonPaint)
-        buttonPaint.shader = null
-        fillPaint.color = Color.argb(70, 255, 255, 255)
-        canvas.drawRoundRect(
-            RectF(rect.left + dp(4f), rect.top + dp(4f), rect.right - dp(4f), rect.top + rect.height() * 0.42f),
-            dp(12f),
-            dp(12f),
-            fillPaint,
-        )
-        strokePaint.color = Color.parseColor("#1E1F25")
-        strokePaint.strokeWidth = dp(1.6f)
-        canvas.drawRoundRect(rect, dp(16f), dp(16f), strokePaint)
-
-        centerTextPaint.textSize = sp(15f)
-        centerTextPaint.color = Color.parseColor("#17191F")
-        canvas.drawText(label, rect.centerX(), rect.centerY() - dp(2f), centerTextPaint)
-        centerTextPaint.textSize = sp(10f)
-        centerTextPaint.color = adjustAlpha(Color.parseColor("#17191F"), 0.74f)
-        canvas.drawText(subtitle.uppercase(), rect.centerX(), rect.bottom - dp(10f), centerTextPaint)
-    }
-
-    private fun drawMissionChip(canvas: Canvas) {
-        val chip = RectF(width * 0.39f, dp(18f), width * 0.61f, dp(90f))
-        cardPaint.color = Color.parseColor("#F0B640")
-        canvas.drawRoundRect(chip, dp(16f), dp(16f), cardPaint)
-        fillPaint.color = Color.parseColor("#6D45A6")
-        canvas.drawRoundRect(RectF(chip.left + dp(6f), chip.top + dp(6f), chip.right - dp(6f), chip.top + dp(24f)), dp(10f), dp(10f), fillPaint)
-        fillPaint.color = Color.parseColor("#F9E3B6")
-        canvas.drawRoundRect(RectF(chip.left + dp(10f), chip.top + dp(34f), chip.right - dp(10f), chip.bottom - dp(10f)), dp(10f), dp(10f), fillPaint)
-        strokePaint.color = Color.parseColor("#1F2026")
-        strokePaint.strokeWidth = dp(2f)
-        canvas.drawRoundRect(chip, dp(16f), dp(16f), strokePaint)
-
-        centerTextPaint.color = Color.WHITE
-        centerTextPaint.textSize = sp(11f)
-        canvas.drawText("MISSION $currentLevel", chip.centerX(), chip.top + dp(17f), centerTextPaint)
-        centerTextPaint.color = Color.parseColor("#1C1E26")
-        centerTextPaint.textSize = sp(13f)
-        canvas.drawText("Shoot all criminals", chip.centerX(), chip.top + dp(57f), centerTextPaint)
-
-        fillPaint.color = Color.parseColor("#7EDBFF")
-        canvas.drawRoundRect(RectF(chip.left + dp(10f), chip.top + dp(34f), chip.left + dp(42f), chip.bottom - dp(10f)), dp(10f), dp(10f), fillPaint)
-        centerTextPaint.textSize = sp(10f)
-        centerTextPaint.color = Color.parseColor("#1B1D24")
-        canvas.drawText("${max(enemiesRemaining, 0)}", chip.left + dp(26f), chip.bottom - dp(18f), centerTextPaint)
-    }
-
-    private fun drawCoinCounter(canvas: Canvas) {
-        val rect = RectF(width - dp(62f), dp(16f), width - dp(16f), dp(48f))
-        cardPaint.color = Color.argb(130, 255, 255, 255)
-        canvas.drawRoundRect(rect, dp(16f), dp(16f), cardPaint)
-        strokePaint.color = Color.parseColor("#F7F8FA")
-        strokePaint.strokeWidth = dp(1.5f)
-        canvas.drawRoundRect(rect, dp(16f), dp(16f), strokePaint)
-        centerTextPaint.textSize = sp(14f)
-        centerTextPaint.color = Color.parseColor("#1A1D25")
-        canvas.drawText("$coins", rect.centerX(), rect.centerY() + dp(5f), centerTextPaint)
-    }
-
-    private fun drawStatusChip(canvas: Canvas) {
-        val rect = RectF(width * 0.34f, height - dp(58f), width * 0.66f, height - dp(22f))
-        cardPaint.color = Color.argb(144, 19, 24, 34)
-        canvas.drawRoundRect(rect, dp(18f), dp(18f), cardPaint)
-        strokePaint.color = Color.argb(80, 255, 255, 255)
-        strokePaint.strokeWidth = dp(1.4f)
-        canvas.drawRoundRect(rect, dp(18f), dp(18f), strokePaint)
-        centerTextPaint.textSize = sp(11.5f)
-        centerTextPaint.color = Color.WHITE
-        canvas.drawText(message.take(48), rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
-    }
-
-    private fun drawIconButton(canvas: Canvas, rect: RectF, label: String) {
-        cardPaint.color = Color.argb(150, 255, 255, 255)
-        canvas.drawOval(rect, cardPaint)
-        strokePaint.color = Color.parseColor("#17191F")
-        strokePaint.strokeWidth = dp(1.8f)
-        canvas.drawOval(rect, strokePaint)
-        centerTextPaint.textSize = sp(12f)
-        centerTextPaint.color = Color.parseColor("#1A1D25")
-        canvas.drawText(label, rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
-    }
-
-    private fun drawHudPill(canvas: Canvas, rect: RectF, label: String, value: String, accent: Int) {
-        cardPaint.color = Color.argb(150, 8, 15, 28)
-        canvas.drawRoundRect(rect, dp(18f), dp(18f), cardPaint)
-        strokePaint.color = adjustAlpha(accent, 0.85f)
-        strokePaint.strokeWidth = dp(2f)
-        canvas.drawRoundRect(rect, dp(18f), dp(18f), strokePaint)
-
-        centerTextPaint.textAlign = Paint.Align.CENTER
-        centerTextPaint.textSize = sp(11f)
-        centerTextPaint.color = adjustAlpha(accent, 0.92f)
-        canvas.drawText(label, rect.centerX(), rect.top + dp(17f), centerTextPaint)
-        centerTextPaint.textSize = sp(20f)
-        centerTextPaint.color = Color.WHITE
-        canvas.drawText(value, rect.centerX(), rect.bottom - dp(12f), centerTextPaint)
-    }
-
-    private fun drawCloud(canvas: Canvas, centerX: Float, centerY: Float, radius: Float) {
-        canvas.drawCircle(centerX - radius * 0.65f, centerY, radius * 0.48f, fillPaint)
-        canvas.drawCircle(centerX, centerY - radius * 0.12f, radius * 0.6f, fillPaint)
-        canvas.drawCircle(centerX + radius * 0.6f, centerY, radius * 0.42f, fillPaint)
-        canvas.drawRoundRect(RectF(centerX - radius, centerY, centerX + radius * 0.95f, centerY + radius * 0.45f), radius * 0.24f, radius * 0.24f, fillPaint)
-    }
-
-    private fun drawCrate(canvas: Canvas, left: Float, top: Float, width: Float, height: Float) {
-        val rect = RectF(left, top, left + width, top + height)
-        fillPaint.color = Color.parseColor("#C9865C")
-        canvas.drawRoundRect(rect, dp(6f), dp(6f), fillPaint)
-        strokePaint.color = Color.parseColor("#87543B")
-        strokePaint.strokeWidth = dp(2f)
-        canvas.drawRoundRect(rect, dp(6f), dp(6f), strokePaint)
-        strokePaint.strokeWidth = dp(1.6f)
-        canvas.drawLine(rect.left + width * 0.25f, rect.top + dp(6f), rect.left + width * 0.25f, rect.bottom - dp(6f), strokePaint)
-        canvas.drawLine(rect.left + width * 0.52f, rect.top + dp(6f), rect.left + width * 0.52f, rect.bottom - dp(6f), strokePaint)
-        canvas.drawLine(rect.left + width * 0.78f, rect.top + dp(6f), rect.left + width * 0.78f, rect.bottom - dp(6f), strokePaint)
-        canvas.drawLine(rect.left + dp(8f), rect.top + height * 0.22f, rect.right - dp(8f), rect.top + height * 0.22f, strokePaint)
-    }
-
-    private fun drawMultilineText(canvas: Canvas, text: String, x: Float, y: Float, maxWidth: Float, paint: Paint, lineHeight: Float, align: Paint.Align = Paint.Align.LEFT) {
-        paint.textAlign = align
-        val words = text.split(" ")
-        val lines = mutableListOf<String>()
-        var current = ""
-        words.forEach { word ->
-            val candidate = if (current.isEmpty()) word else "$current $word"
-            if (paint.measureText(candidate) <= maxWidth || current.isEmpty()) {
-                current = candidate
-            } else {
-                lines += current
-                current = word
-            }
-        }
-        if (current.isNotEmpty()) {
-            lines += current
-        }
-        lines.forEachIndexed { index, line ->
-            val drawX = when (align) {
-                Paint.Align.CENTER -> x + maxWidth * 0.5f
-                Paint.Align.RIGHT -> x + maxWidth
-                else -> x
-            }
-            canvas.drawText(line, drawX, y + index * lineHeight, paint)
-        }
-    }
-
-    private fun adjustAlpha(color: Int, alpha: Float): Int {
-        val a = (Color.alpha(color) * alpha).toInt().coerceIn(0, 255)
-        return Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))
     }
 
     private fun blendWithWhite(color: Int, amount: Float): Int {
@@ -1544,24 +1433,5 @@ class CrimehunterGameView @JvmOverloads constructor(
         val g = (Color.green(color) + (255 - Color.green(color)) * clamped).toInt()
         val b = (Color.blue(color) + (255 - Color.blue(color)) * clamped).toInt()
         return Color.rgb(r, g, b)
-    }
-
-    private fun shadeColor(color: Int, factor: Float): Int {
-        val clamped = factor.coerceIn(0f, 1f)
-        return Color.rgb(
-            (Color.red(color) * clamped).toInt(),
-            (Color.green(color) * clamped).toInt(),
-            (Color.blue(color) * clamped).toInt(),
-        )
-    }
-
-    private fun buildActorPalette(isEnemy: Boolean): List<Int> {
-        val shirt = if (isEnemy) enemyShirts.random(random) else civilianShirts.random(random)
-        return listOf(
-            skinTones.random(random),
-            shirt,
-            pantColors.random(random),
-            hairColors.random(random),
-        )
     }
 }
