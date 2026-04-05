@@ -24,6 +24,19 @@ class CrimehunterGameView @JvmOverloads constructor(
     private fun dp(value: Float) = value * density
     private fun sp(value: Float) = value * density * resources.configuration.fontScale
 
+    private data class ArenaPalette(
+        val name: String,
+        val skyTop: Int,
+        val skyMid: Int,
+        val skyWarm: Int,
+        val skylineBack: Int,
+        val skylineFront: Int,
+        val floor: Int,
+        val platform: Int,
+        val glowA: Int,
+        val glowB: Int,
+    )
+
     private val random = Random(4412)
     private val particles = mutableListOf<Particle>()
     private val upgradeCards = mutableListOf<UpgradeCard>()
@@ -49,6 +62,21 @@ class CrimehunterGameView @JvmOverloads constructor(
     private var resultTitle = ""
     private var resultDescription = ""
     private var optionsReturnPhase = ScenePhase.TITLE
+    private var roundIntroTimer = 0f
+    private var roundIntroTitle = ""
+    private var lastRoundPerfect = false
+    private var activeArena = ArenaPalette(
+        name = "Skyline Rooftop",
+        skyTop = Color.parseColor("#2A1847"),
+        skyMid = Color.parseColor("#55306A"),
+        skyWarm = Color.parseColor("#F58B5E"),
+        skylineBack = Color.parseColor("#543563"),
+        skylineFront = Color.parseColor("#1D1731"),
+        floor = Color.parseColor("#120F20"),
+        platform = Color.parseColor("#241A37"),
+        glowA = Color.parseColor("#57D7FF"),
+        glowB = Color.parseColor("#FF7187"),
+    )
 
     private var player = Fighter(
         side = FighterSide.PLAYER,
@@ -116,6 +144,44 @@ class CrimehunterGameView @JvmOverloads constructor(
         Color.parseColor("#7CF26A"),
         Color.parseColor("#58C5FF"),
         Color.parseColor("#FFD34F"),
+    )
+    private val arenaThemes = listOf(
+        ArenaPalette(
+            name = "Skyline Rooftop",
+            skyTop = Color.parseColor("#2A1847"),
+            skyMid = Color.parseColor("#55306A"),
+            skyWarm = Color.parseColor("#F58B5E"),
+            skylineBack = Color.parseColor("#543563"),
+            skylineFront = Color.parseColor("#1D1731"),
+            floor = Color.parseColor("#120F20"),
+            platform = Color.parseColor("#241A37"),
+            glowA = Color.parseColor("#57D7FF"),
+            glowB = Color.parseColor("#FF7187"),
+        ),
+        ArenaPalette(
+            name = "Sunset Overpass",
+            skyTop = Color.parseColor("#142C58"),
+            skyMid = Color.parseColor("#2E6BAA"),
+            skyWarm = Color.parseColor("#FFB06A"),
+            skylineBack = Color.parseColor("#496C9D"),
+            skylineFront = Color.parseColor("#17314A"),
+            floor = Color.parseColor("#111C2B"),
+            platform = Color.parseColor("#203049"),
+            glowA = Color.parseColor("#80F2FF"),
+            glowB = Color.parseColor("#FFC266"),
+        ),
+        ArenaPalette(
+            name = "Neon Storm",
+            skyTop = Color.parseColor("#170F2E"),
+            skyMid = Color.parseColor("#243A74"),
+            skyWarm = Color.parseColor("#8B7DFF"),
+            skylineBack = Color.parseColor("#3A458A"),
+            skylineFront = Color.parseColor("#11182E"),
+            floor = Color.parseColor("#0B1220"),
+            platform = Color.parseColor("#1D2740"),
+            glowA = Color.parseColor("#60F5D6"),
+            glowB = Color.parseColor("#B36CFF"),
+        ),
     )
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -249,6 +315,12 @@ class CrimehunterGameView @JvmOverloads constructor(
         roundTimer += dt
         aiDecisionTimer = max(0f, aiDecisionTimer - dt)
 
+        if (roundIntroTimer > 0f) {
+            roundIntroTimer = max(0f, roundIntroTimer - dt)
+            updateParticles(dt)
+            return
+        }
+
         updateFighterTimers(player, dt)
         updateFighterTimers(enemy, dt)
         updatePlayer(dt)
@@ -316,6 +388,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             return
         }
 
+        val bossRound = currentRound % 4 == 0
         val distance = player.x - enemy.x
         val absDistance = abs(distance)
         enemy.facing = if (distance >= 0f) 1f else -1f
@@ -337,27 +410,27 @@ class CrimehunterGameView @JvmOverloads constructor(
             return
         }
 
-        aiDecisionTimer = 0.12f + random.nextFloat() * 0.2f
+        aiDecisionTimer = if (bossRound) 0.08f + random.nextFloat() * 0.14f else 0.12f + random.nextFloat() * 0.2f
 
-        if (player.attackState != null && absDistance < dp(120f) && random.nextFloat() < 0.28f) {
+        if (player.attackState != null && absDistance < dp(120f) && random.nextFloat() < if (bossRound) 0.45f else 0.28f) {
             enemy.blockRemaining = 0.22f
             return
         }
 
-        if (enemy.onGround && random.nextFloat() < 0.05f) {
-            jump(enemy, 0.9f)
+        if (enemy.onGround && random.nextFloat() < if (bossRound) 0.12f else 0.05f) {
+            jump(enemy, if (bossRound) 1.05f else 0.9f)
             return
         }
 
         if (absDistance < dp(104f)) {
             val attack =
                 when {
-                    enemy.energy >= 100f && random.nextFloat() < 0.2f -> AttackType.SPECIAL
-                    random.nextFloat() < 0.45f -> AttackType.KICK
+                    enemy.energy >= 100f && (bossRound || random.nextFloat() < 0.2f) -> AttackType.SPECIAL
+                    random.nextFloat() < if (bossRound) 0.62f else 0.45f -> AttackType.KICK
                     else -> AttackType.JAB
                 }
             attemptAttack(enemy, attack)
-        } else if (absDistance < dp(190f) && random.nextFloat() < 0.3f) {
+        } else if (absDistance < dp(if (bossRound) 230f else 190f) && random.nextFloat() < if (bossRound) 0.46f else 0.3f) {
             attemptAttack(enemy, AttackType.DASH)
         }
     }
@@ -500,12 +573,20 @@ class CrimehunterGameView @JvmOverloads constructor(
         clearTouchControls()
         if (won) {
             phase = ScenePhase.ROUND_CLEAR
-            coins += 110 + currentRound * 24
+            val perfectBonus = if (player.health >= player.maxHealth * 0.72f) 45 + currentRound * 10 else 0
+            lastRoundPerfect = perfectBonus > 0
+            coins += 110 + currentRound * 24 + perfectBonus
             resultEyebrow = "ROUND WON"
             resultTitle = "Arena Dominated"
-            resultDescription = "You dropped ${enemy.name} and kept the combo alive. Step deeper into the ladder."
+            resultDescription =
+                if (perfectBonus > 0) {
+                    "You dropped ${enemy.name} clean and earned a perfect-round bonus of $perfectBonus coins."
+                } else {
+                    "You dropped ${enemy.name} and kept the combo alive. Step deeper into the ladder."
+                }
         } else {
             phase = ScenePhase.ROUND_FAILED
+            lastRoundPerfect = false
             resultEyebrow = "ROUND LOST"
             resultTitle = "You Were Broken"
             resultDescription = "${enemy.name} took the round. Reset your rhythm and strike back."
@@ -519,6 +600,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             stats = PlayerStats()
             coins = 0
             bestCombo = 0
+            lastRoundPerfect = false
         }
 
         clearTouchControls()
@@ -530,7 +612,11 @@ class CrimehunterGameView @JvmOverloads constructor(
         aiDecisionTimer = 0.18f
         freezeRemaining = 0f
         screenShake = 0f
-        statusText = "Round $round. Break the rival and rule the skyline."
+        roundIntroTimer = 1.35f
+        activeArena = arenaThemes[(round - 1).mod(arenaThemes.size)]
+        val bossRound = round % 4 == 0
+        roundIntroTitle = if (bossRound) "BOSS ROUND" else "ROUND $round"
+        statusText = if (bossRound) "A champion steps out in ${activeArena.name}." else "Round $round. Break the rival and rule the skyline."
 
         player = Fighter(
             side = FighterSide.PLAYER,
@@ -543,7 +629,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             outline = Color.parseColor("#08101E"),
             maxHealth = stats.maxHealth,
             health = stats.maxHealth,
-            energy = if (round == 1) 24f else min(50f, round * 8f),
+            energy = if (round == 1) 24f else min(60f, 16f + round * 9f),
             moveSpeed = dp(stats.moveSpeed),
             jumpForce = dp(stats.jumpForce),
         )
@@ -551,20 +637,22 @@ class CrimehunterGameView @JvmOverloads constructor(
         player.x = player.x.coerceIn(arenaLeft + dp(64f), arenaRight - dp(220f))
 
         player.blockRemaining = if (options.chillMode) 0.08f else 0f
+        val enemyBaseHealth = 84f + round * 18f
+        val enemyHealth = if (bossRound) enemyBaseHealth * 1.38f else enemyBaseHealth
         enemy = Fighter(
             side = FighterSide.ENEMY,
-            name = enemyNames.random(random),
+            name = if (bossRound) "${enemyNames.random(random)} Prime" else enemyNames.random(random),
             x = width * 0.72f,
             y = groundY,
             facing = -1f,
             color = Color.parseColor("#FFF3ED"),
-            accent = enemyAccents.random(random),
+            accent = if (bossRound) Color.parseColor("#C46BFF") else enemyAccents.random(random),
             outline = Color.parseColor("#120B10"),
-            maxHealth = 84f + round * 18f,
-            health = 84f + round * 18f,
+            maxHealth = enemyHealth,
+            health = enemyHealth,
             energy = min(42f, round * 7f),
-            moveSpeed = dp(312f + round * 10f),
-            jumpForce = dp(840f + round * 8f),
+            moveSpeed = dp((312f + round * 10f) * if (bossRound) 1.08f else 1f),
+            jumpForce = dp((840f + round * 8f) * if (bossRound) 1.05f else 1f),
         )
         rebuildUiLayout()
     }
@@ -789,9 +877,9 @@ class CrimehunterGameView @JvmOverloads constructor(
             0f,
             height.toFloat(),
             intArrayOf(
-                Color.parseColor("#2A1847"),
-                Color.parseColor("#55306A"),
-                Color.parseColor("#F58B5E"),
+                activeArena.skyTop,
+                activeArena.skyMid,
+                activeArena.skyWarm,
                 Color.parseColor("#FFCF9B"),
             ),
             floatArrayOf(0f, 0.36f, 0.73f, 1f),
@@ -807,7 +895,7 @@ class CrimehunterGameView @JvmOverloads constructor(
         drawCloud(canvas, width * 0.48f, height * 0.11f, dp(54f))
         drawCloud(canvas, width * 0.7f, height * 0.28f, dp(66f))
 
-        fillPaint.color = Color.parseColor("#543563")
+        fillPaint.color = activeArena.skylineBack
         repeat(8) { index ->
             val towerWidth = width * (0.09f + index % 3 * 0.014f)
             val left = index * width / 7.6f - dp(20f)
@@ -815,7 +903,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             canvas.drawRoundRect(RectF(left, top, left + towerWidth, height.toFloat()), dp(18f), dp(18f), fillPaint)
         }
 
-        fillPaint.color = Color.parseColor("#1D1731")
+        fillPaint.color = activeArena.skylineFront
         repeat(9) { index ->
             val towerWidth = width * (0.12f + (index % 2) * 0.02f)
             val left = index * width / 8.4f - dp(18f)
@@ -825,16 +913,16 @@ class CrimehunterGameView @JvmOverloads constructor(
     }
 
     private fun drawArena(canvas: Canvas) {
-        fillPaint.color = Color.parseColor("#120F20")
+        fillPaint.color = activeArena.floor
         canvas.drawRect(0f, groundY + dp(18f), width.toFloat(), height.toFloat(), fillPaint)
 
         val platform = RectF(arenaLeft, groundY - dp(18f), arenaRight, groundY + dp(18f))
-        fillPaint.color = Color.parseColor("#241A37")
+        fillPaint.color = activeArena.platform
         canvas.drawRoundRect(platform, dp(18f), dp(18f), fillPaint)
 
-        fillPaint.color = Color.parseColor("#57D7FF")
+        fillPaint.color = activeArena.glowA
         canvas.drawRect(platform.left + dp(20f), platform.top + dp(10f), platform.right - dp(20f), platform.top + dp(14f), fillPaint)
-        fillPaint.color = Color.parseColor("#FF7187")
+        fillPaint.color = activeArena.glowB
         canvas.drawRect(platform.left + dp(20f), platform.bottom - dp(14f), platform.right - dp(20f), platform.bottom - dp(10f), fillPaint)
 
         fillPaint.color = Color.parseColor("#302245")
@@ -856,11 +944,12 @@ class CrimehunterGameView @JvmOverloads constructor(
     }
 
     private fun drawFighter(canvas: Canvas, fighter: Fighter) {
-        val headRadius = dp(18f)
-        val torsoTop = fighter.y - dp(116f)
-        val torsoBottom = fighter.y - dp(54f)
+        val scale = if (fighter.side == FighterSide.ENEMY && currentRound % 4 == 0) 1.1f else 1f
+        val bob = if (fighter.onGround && fighter.attackState == null) sin(skylineTime * 7f + fighter.x * 0.008f) * dp(2.5f) else 0f
+        val headRadius = dp(18f) * scale
+        val torsoTop = fighter.y - dp(116f) * scale + bob
+        val torsoBottom = fighter.y - dp(54f) * scale + bob
         val shoulderY = torsoTop + dp(18f)
-        val hipY = torsoBottom
         val attack = fighter.attackState
         val animTime = attack?.timer ?: 0f
         val attackPose = if (attack != null) min(1f, animTime / max(attack.type.startup + attack.type.active, 0.01f)) else 0f
@@ -873,18 +962,18 @@ class CrimehunterGameView @JvmOverloads constructor(
                 null -> 0f
             }
 
-        val leadArmX = fighter.x + fighter.facing * (dp(18f) + reachBoost * attackPose)
-        val leadArmY = shoulderY + if (attack?.type == AttackType.KICK) dp(20f) else -dp(6f)
-        val rearArmX = fighter.x - fighter.facing * dp(18f)
-        val rearArmY = shoulderY + dp(12f)
-        val leadLegX = fighter.x + fighter.facing * (dp(16f) + if (attack?.type == AttackType.KICK) reachBoost * 0.72f else 0f)
+        val leadArmX = fighter.x + fighter.facing * (dp(18f) * scale + reachBoost * attackPose)
+        val leadArmY = shoulderY + if (attack?.type == AttackType.KICK) dp(20f) * scale else -dp(6f) * scale
+        val rearArmX = fighter.x - fighter.facing * dp(18f) * scale
+        val rearArmY = shoulderY + dp(12f) * scale
+        val leadLegX = fighter.x + fighter.facing * (dp(16f) * scale + if (attack?.type == AttackType.KICK) reachBoost * 0.72f else 0f)
         val leadLegY = fighter.y
-        val rearLegX = fighter.x - fighter.facing * dp(18f)
+        val rearLegX = fighter.x - fighter.facing * dp(18f) * scale
         val rearLegY = fighter.y
-        val neckY = torsoTop - dp(6f)
+        val neckY = torsoTop - dp(6f) * scale
 
         fillPaint.color = Color.argb(65, 0, 0, 0)
-        canvas.drawOval(RectF(fighter.x - dp(28f), fighter.y - dp(8f), fighter.x + dp(28f), fighter.y + dp(8f)), fillPaint)
+        canvas.drawOval(RectF(fighter.x - dp(28f) * scale, fighter.y - dp(8f), fighter.x + dp(28f) * scale, fighter.y + dp(8f)), fillPaint)
 
         if (fighter.side == FighterSide.PLAYER && fighter.energy >= 100f) {
             fillPaint.color = Color.argb(70, Color.red(fighter.accent), Color.green(fighter.accent), Color.blue(fighter.accent))
@@ -906,7 +995,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             rearLegX = rearLegX,
             rearLegY = rearLegY,
             color = fighter.outline,
-            width = dp(13f),
+            width = dp(13f) * scale,
         )
         drawStickmanSkeleton(
             canvas = canvas,
@@ -922,30 +1011,30 @@ class CrimehunterGameView @JvmOverloads constructor(
             rearLegX = rearLegX,
             rearLegY = rearLegY,
             color = flashColor,
-            width = dp(7f),
+            width = dp(7f) * scale,
         )
 
         fillPaint.color = if (fighter.hitFlash > 0f) Color.WHITE else fighter.color
         canvas.drawCircle(fighter.x, torsoTop - headRadius, headRadius, fillPaint)
         strokePaint.color = fighter.outline
-        strokePaint.strokeWidth = dp(4f)
+        strokePaint.strokeWidth = dp(4f) * scale
         canvas.drawCircle(fighter.x, torsoTop - headRadius, headRadius, strokePaint)
 
         strokePaint.color = fighter.accent
-        strokePaint.strokeWidth = dp(4f)
+        strokePaint.strokeWidth = dp(4f) * scale
         canvas.drawLine(
-            fighter.x - fighter.facing * dp(14f),
+            fighter.x - fighter.facing * dp(14f) * scale,
             torsoTop - headRadius * 0.95f,
-            fighter.x + fighter.facing * dp(10f),
+            fighter.x + fighter.facing * dp(10f) * scale,
             torsoTop - headRadius * 0.85f,
             strokePaint,
         )
 
         if (fighter.blockRemaining > 0f) {
             strokePaint.color = blendWithWhite(fighter.accent, 0.35f)
-            strokePaint.strokeWidth = dp(5f)
+            strokePaint.strokeWidth = dp(5f) * scale
             canvas.drawArc(
-                RectF(fighter.x - dp(40f), torsoTop - dp(26f), fighter.x + dp(40f), torsoBottom + dp(18f)),
+                RectF(fighter.x - dp(40f) * scale, torsoTop - dp(26f) * scale, fighter.x + dp(40f) * scale, torsoBottom + dp(18f) * scale),
                 if (fighter.facing > 0f) -70f else 250f,
                 140f,
                 false,
@@ -994,9 +1083,14 @@ class CrimehunterGameView @JvmOverloads constructor(
         drawRoundChip(canvas)
         drawCoinChip(canvas)
         drawIconButton(canvas, hudOptionsButton, "II")
+        drawStatusStrip(canvas)
+        drawComboChip(canvas)
 
         if (phase == ScenePhase.PLAYING) {
             drawControls(canvas)
+            if (roundIntroTimer > 0f) {
+                drawRoundIntro(canvas)
+            }
         }
     }
 
@@ -1060,6 +1154,26 @@ class CrimehunterGameView @JvmOverloads constructor(
         canvas.drawText("$coins", rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
     }
 
+    private fun drawStatusStrip(canvas: Canvas) {
+        val rect = RectF(width * 0.28f, dp(88f), width * 0.72f, dp(122f))
+        fillPaint.color = Color.argb(145, 14, 16, 27)
+        canvas.drawRoundRect(rect, dp(18f), dp(18f), fillPaint)
+        centerTextPaint.textSize = sp(11f)
+        centerTextPaint.color = Color.argb(225, 236, 239, 246)
+        val detail = if (player.energy >= 100f) "$statusText  Burst ready." else statusText
+        canvas.drawText(detail, rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
+    }
+
+    private fun drawComboChip(canvas: Canvas) {
+        val rect = RectF(width - dp(132f), dp(82f), width - dp(24f), dp(126f))
+        fillPaint.color = Color.argb(155, 18, 18, 30)
+        canvas.drawRoundRect(rect, dp(22f), dp(22f), fillPaint)
+        centerTextPaint.textSize = sp(10f)
+        centerTextPaint.color = Color.argb(205, 227, 231, 240)
+        val comboText = if (player.comboCount > 1) "COMBO x${player.comboCount}" else activeArena.name.uppercase()
+        canvas.drawText(comboText, rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
+    }
+
     private fun drawIconButton(canvas: Canvas, rect: RectF, label: String) {
         fillPaint.color = Color.argb(150, 14, 18, 28)
         canvas.drawRoundRect(rect, dp(16f), dp(16f), fillPaint)
@@ -1069,6 +1183,22 @@ class CrimehunterGameView @JvmOverloads constructor(
         centerTextPaint.textSize = sp(15f)
         centerTextPaint.color = Color.WHITE
         canvas.drawText(label, rect.centerX(), rect.centerY() + dp(5f), centerTextPaint)
+    }
+
+    private fun drawRoundIntro(canvas: Canvas) {
+        val alpha = (roundIntroTimer / 1.35f).coerceIn(0f, 1f)
+        val rect = RectF(width * 0.34f, height * 0.34f, width * 0.66f, height * 0.48f)
+        fillPaint.color = Color.argb((150 * alpha).toInt(), 9, 13, 22)
+        canvas.drawRoundRect(rect, dp(28f), dp(28f), fillPaint)
+        strokePaint.color = Color.argb((255 * alpha).toInt(), Color.red(activeArena.glowA), Color.green(activeArena.glowA), Color.blue(activeArena.glowA))
+        strokePaint.strokeWidth = dp(3f)
+        canvas.drawRoundRect(rect, dp(28f), dp(28f), strokePaint)
+
+        centerTextPaint.textSize = sp(12f)
+        centerTextPaint.color = Color.argb((230 * alpha).toInt(), 255, 255, 255)
+        canvas.drawText(activeArena.name.uppercase(), rect.centerX(), rect.top + dp(32f), centerTextPaint)
+        centerTextPaint.textSize = sp(26f)
+        canvas.drawText(roundIntroTitle, rect.centerX(), rect.centerY() + dp(2f), centerTextPaint)
     }
 
     private fun drawControls(canvas: Canvas) {
@@ -1139,7 +1269,7 @@ class CrimehunterGameView @JvmOverloads constructor(
         textPaint.color = Color.argb(225, 235, 236, 241)
         drawMultilineText(
             canvas = canvas,
-            text = "A fast original stickman arena brawler for Android. Chain clean jabs, kicks, air bursts, and build your own fight path round after round.",
+            text = "A fast original stickman arena brawler for Android. Chain clean jabs, kicks, air bursts, and climb through themed rooftop fights with boss rounds and upgrade breaks.",
             left = card.left + dp(28f),
             top = card.top + dp(128f),
             maxWidth = card.width() - dp(56f),
@@ -1148,8 +1278,8 @@ class CrimehunterGameView @JvmOverloads constructor(
         )
 
         drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(290f), "Touch controls built for phones")
-        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(346f), "Arcade rounds with upgrade choices")
-        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(402f), "Original stickman combat feel")
+        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(346f), "Boss rounds and shifting arena themes")
+        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(402f), "Arcade rounds with upgrade choices")
 
         drawMenuButton(canvas, playButton, "Start Fight", "ENTER ARENA", Color.parseColor("#64E6A2"))
         drawMenuButton(canvas, optionsButton, "Options", "TUNE MATCH", Color.parseColor("#74A9FF"))
@@ -1205,7 +1335,13 @@ class CrimehunterGameView @JvmOverloads constructor(
 
         centerTextPaint.textSize = sp(14f)
         centerTextPaint.color = Color.parseColor("#FFD873")
-        canvas.drawText("Coins $coins    Best Combo x$bestCombo", card.centerX(), card.bottom - dp(132f), centerTextPaint)
+        val resultFooter =
+            if (phase == ScenePhase.ROUND_CLEAR && lastRoundPerfect) {
+                "Perfect Finish    Coins $coins    Best Combo x$bestCombo"
+            } else {
+                "Coins $coins    Best Combo x$bestCombo"
+            }
+        canvas.drawText(resultFooter, card.centerX(), card.bottom - dp(132f), centerTextPaint)
 
         drawMenuButton(
             canvas,
