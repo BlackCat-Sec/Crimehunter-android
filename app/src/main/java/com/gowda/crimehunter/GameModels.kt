@@ -4,6 +4,7 @@ import android.graphics.RectF
 
 enum class ScenePhase {
     TITLE,
+    OPTIONS,
     PLAYING,
     LEVEL_CLEAR,
     MISSION_FAILED,
@@ -43,6 +44,10 @@ data class Actor(
     val roofIndex: Int,
     val radius: Float,
     val walkSpeed: Float,
+    val skinTone: Int,
+    val shirtColor: Int,
+    val pantsColor: Int,
+    val hairColor: Int,
     var x: Float,
     var y: Float,
     var targetX: Float,
@@ -82,7 +87,13 @@ data class UpgradeCard(
 data class PlayerStats(
     var magazineSize: Int = 3,
     var reloadTime: Float = 1.2f,
-    var focusFactor: Float = 0.78f,
-    var spreadRadians: Float = 0.026f,
+    var focusFactor: Float = 0.62f,
+    var spreadRadians: Float = 0.02f,
     var bountyMultiplier: Float = 1f,
+)
+
+data class GameOptions(
+    var tacticalPace: Boolean = true,
+    var aimGuide: Boolean = true,
+    var screenShake: Boolean = true,
 )
