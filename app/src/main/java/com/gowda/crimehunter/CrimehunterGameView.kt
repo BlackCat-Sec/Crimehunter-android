@@ -1,6 +1,7 @@
 package com.gowda.crimehunter
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -37,7 +38,22 @@ class CrimehunterGameView @JvmOverloads constructor(
         val glowB: Int,
     )
 
+    private data class EnemyProfile(
+        val title: String,
+        val accent: Int,
+        val healthScale: Float,
+        val moveScale: Float,
+        val jumpScale: Float,
+        val blockBias: Float,
+        val jumpBias: Float,
+        val dashBias: Float,
+        val kickBias: Float,
+        val specialBias: Float,
+        val styleNote: String,
+    )
+
     private val random = Random(4412)
+    private val prefs: SharedPreferences = context.getSharedPreferences("skyline_stick_clash", Context.MODE_PRIVATE)
     private val particles = mutableListOf<Particle>()
     private val upgradeCards = mutableListOf<UpgradeCard>()
 
@@ -65,6 +81,25 @@ class CrimehunterGameView @JvmOverloads constructor(
     private var roundIntroTimer = 0f
     private var roundIntroTitle = ""
     private var lastRoundPerfect = false
+    private var championshipClears = 0
+    private var highestRoundReached = 1
+    private var lifetimeCoins = 0
+    private var runsStarted = 0
+    private var tutorialActive = true
+    private var campaignComplete = false
+    private var currentEnemyProfile = EnemyProfile(
+        title = "Street Ace",
+        accent = Color.parseColor("#FF5A52"),
+        healthScale = 1f,
+        moveScale = 1f,
+        jumpScale = 1f,
+        blockBias = 1f,
+        jumpBias = 1f,
+        dashBias = 1f,
+        kickBias = 1f,
+        specialBias = 1f,
+        styleNote = "Balanced footwork and pressure.",
+    )
     private var activeArena = ArenaPalette(
         name = "Skyline Rooftop",
         skyTop = Color.parseColor("#2A1847"),
@@ -183,6 +218,61 @@ class CrimehunterGameView @JvmOverloads constructor(
             glowB = Color.parseColor("#B36CFF"),
         ),
     )
+    private val enemyProfiles = listOf(
+        EnemyProfile(
+            title = "Street Ace",
+            accent = Color.parseColor("#FF6B61"),
+            healthScale = 1f,
+            moveScale = 1f,
+            jumpScale = 1f,
+            blockBias = 1f,
+            jumpBias = 0.9f,
+            dashBias = 1f,
+            kickBias = 1f,
+            specialBias = 1f,
+            styleNote = "Balanced pressure and clean counters.",
+        ),
+        EnemyProfile(
+            title = "Rushdown",
+            accent = Color.parseColor("#FF944D"),
+            healthScale = 0.94f,
+            moveScale = 1.16f,
+            jumpScale = 0.96f,
+            blockBias = 0.8f,
+            jumpBias = 1f,
+            dashBias = 1.45f,
+            kickBias = 0.9f,
+            specialBias = 0.85f,
+            styleNote = "Fast feet, frequent dash bursts.",
+        ),
+        EnemyProfile(
+            title = "Sky Breaker",
+            accent = Color.parseColor("#7FE3FF"),
+            healthScale = 0.98f,
+            moveScale = 0.98f,
+            jumpScale = 1.22f,
+            blockBias = 0.95f,
+            jumpBias = 1.85f,
+            dashBias = 0.92f,
+            kickBias = 1.18f,
+            specialBias = 0.92f,
+            styleNote = "Leaps high and kicks from odd angles.",
+        ),
+        EnemyProfile(
+            title = "Iron Guard",
+            accent = Color.parseColor("#B586FF"),
+            healthScale = 1.2f,
+            moveScale = 0.9f,
+            jumpScale = 0.88f,
+            blockBias = 1.55f,
+            jumpBias = 0.72f,
+            dashBias = 0.8f,
+            kickBias = 1.24f,
+            specialBias = 1.1f,
+            styleNote = "Heavier body, slower feet, more defense.",
+        ),
+    )
+    private val maxCampaignRound = 12
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -222,6 +312,7 @@ class CrimehunterGameView @JvmOverloads constructor(
     init {
         isFocusable = true
         isClickable = true
+        loadProgress()
     }
 
     fun resumeGame() {
@@ -389,6 +480,11 @@ class CrimehunterGameView @JvmOverloads constructor(
         }
 
         val bossRound = currentRound % 4 == 0
+        val blockBias = currentEnemyProfile.blockBias * if (bossRound) 1.15f else 1f
+        val jumpBias = currentEnemyProfile.jumpBias * if (bossRound) 1.1f else 1f
+        val dashBias = currentEnemyProfile.dashBias * if (bossRound) 1.12f else 1f
+        val kickBias = currentEnemyProfile.kickBias * if (bossRound) 1.08f else 1f
+        val specialBias = currentEnemyProfile.specialBias * if (bossRound) 1.22f else 1f
         val distance = player.x - enemy.x
         val absDistance = abs(distance)
         enemy.facing = if (distance >= 0f) 1f else -1f
@@ -412,25 +508,25 @@ class CrimehunterGameView @JvmOverloads constructor(
 
         aiDecisionTimer = if (bossRound) 0.08f + random.nextFloat() * 0.14f else 0.12f + random.nextFloat() * 0.2f
 
-        if (player.attackState != null && absDistance < dp(120f) && random.nextFloat() < if (bossRound) 0.45f else 0.28f) {
+        if (player.attackState != null && absDistance < dp(120f) && random.nextFloat() < (if (bossRound) 0.45f else 0.28f) * blockBias) {
             enemy.blockRemaining = 0.22f
             return
         }
 
-        if (enemy.onGround && random.nextFloat() < if (bossRound) 0.12f else 0.05f) {
-            jump(enemy, if (bossRound) 1.05f else 0.9f)
+        if (enemy.onGround && random.nextFloat() < (if (bossRound) 0.12f else 0.05f) * jumpBias) {
+            jump(enemy, if (bossRound) 1.05f else 0.9f * currentEnemyProfile.jumpScale)
             return
         }
 
         if (absDistance < dp(104f)) {
             val attack =
                 when {
-                    enemy.energy >= 100f && (bossRound || random.nextFloat() < 0.2f) -> AttackType.SPECIAL
-                    random.nextFloat() < if (bossRound) 0.62f else 0.45f -> AttackType.KICK
+                    enemy.energy >= 100f && (bossRound || random.nextFloat() < 0.2f * specialBias) -> AttackType.SPECIAL
+                    random.nextFloat() < (if (bossRound) 0.62f else 0.45f) * kickBias -> AttackType.KICK
                     else -> AttackType.JAB
                 }
             attemptAttack(enemy, attack)
-        } else if (absDistance < dp(if (bossRound) 230f else 190f) && random.nextFloat() < if (bossRound) 0.46f else 0.3f) {
+        } else if (absDistance < dp(if (bossRound) 230f else 190f) && random.nextFloat() < (if (bossRound) 0.46f else 0.3f) * dashBias) {
             attemptAttack(enemy, AttackType.DASH)
         }
     }
@@ -574,23 +670,48 @@ class CrimehunterGameView @JvmOverloads constructor(
         if (won) {
             phase = ScenePhase.ROUND_CLEAR
             val perfectBonus = if (player.health >= player.maxHealth * 0.72f) 45 + currentRound * 10 else 0
+            val roundCoins = 110 + currentRound * 24 + perfectBonus
             lastRoundPerfect = perfectBonus > 0
-            coins += 110 + currentRound * 24 + perfectBonus
-            resultEyebrow = "ROUND WON"
-            resultTitle = "Arena Dominated"
-            resultDescription =
-                if (perfectBonus > 0) {
-                    "You dropped ${enemy.name} clean and earned a perfect-round bonus of $perfectBonus coins."
-                } else {
-                    "You dropped ${enemy.name} and kept the combo alive. Step deeper into the ladder."
-                }
+            coins += roundCoins
+            lifetimeCoins += roundCoins
+            highestRoundReached = max(highestRoundReached, currentRound)
+
+            if (currentRound >= maxCampaignRound) {
+                campaignComplete = true
+                championshipClears += 1
+                resultEyebrow = "CHAMPIONSHIP CLEAR"
+                resultTitle = "Skyline Conquered"
+                resultDescription =
+                    if (perfectBonus > 0) {
+                        "You closed the twelve-round ladder with a perfect finish and claimed the rooftop crown."
+                    } else {
+                        "You survived the full twelve-round ladder and became the skyline champion."
+                    }
+            } else {
+                campaignComplete = false
+                resultEyebrow = "ROUND WON"
+                resultTitle = "Arena Dominated"
+                resultDescription =
+                    if (perfectBonus > 0) {
+                        "You dropped ${enemy.name} clean and earned a perfect-round bonus of $perfectBonus coins."
+                    } else {
+                        "You dropped ${enemy.name} and kept the combo alive. Step deeper into the ladder."
+                    }
+            }
         } else {
             phase = ScenePhase.ROUND_FAILED
+            campaignComplete = false
             lastRoundPerfect = false
             resultEyebrow = "ROUND LOST"
             resultTitle = "You Were Broken"
-            resultDescription = "${enemy.name} took the round. Reset your rhythm and strike back."
+            resultDescription =
+                if (currentRound == 1) {
+                    "${enemy.name} stole the opener. Read the guide, feel the tempo, and go again."
+                } else {
+                    "${enemy.name} took the round. Reset your rhythm and strike back."
+                }
         }
+        saveProgress()
         rebuildUiLayout()
     }
 
@@ -601,6 +722,8 @@ class CrimehunterGameView @JvmOverloads constructor(
             coins = 0
             bestCombo = 0
             lastRoundPerfect = false
+            campaignComplete = false
+            runsStarted += 1
         }
 
         clearTouchControls()
@@ -615,8 +738,20 @@ class CrimehunterGameView @JvmOverloads constructor(
         roundIntroTimer = 1.35f
         activeArena = arenaThemes[(round - 1).mod(arenaThemes.size)]
         val bossRound = round % 4 == 0
+        currentEnemyProfile =
+            if (bossRound) {
+                enemyProfiles.last()
+            } else {
+                enemyProfiles[(round - 1).mod(enemyProfiles.size)]
+            }
         roundIntroTitle = if (bossRound) "BOSS ROUND" else "ROUND $round"
-        statusText = if (bossRound) "A champion steps out in ${activeArena.name}." else "Round $round. Break the rival and rule the skyline."
+        highestRoundReached = max(highestRoundReached, round)
+        statusText =
+            if (bossRound) {
+                "${currentEnemyProfile.title} arrives in ${activeArena.name}. This is the round to own."
+            } else {
+                "Round $round. ${currentEnemyProfile.styleNote}"
+            }
 
         player = Fighter(
             side = FighterSide.PLAYER,
@@ -638,22 +773,24 @@ class CrimehunterGameView @JvmOverloads constructor(
 
         player.blockRemaining = if (options.chillMode) 0.08f else 0f
         val enemyBaseHealth = 84f + round * 18f
-        val enemyHealth = if (bossRound) enemyBaseHealth * 1.38f else enemyBaseHealth
+        val enemyHealth = (if (bossRound) enemyBaseHealth * 1.38f else enemyBaseHealth) * currentEnemyProfile.healthScale
         enemy = Fighter(
             side = FighterSide.ENEMY,
-            name = if (bossRound) "${enemyNames.random(random)} Prime" else enemyNames.random(random),
+            name = if (bossRound) "${enemyNames.random(random)} Prime" else "${enemyNames.random(random)} ${currentEnemyProfile.title}",
             x = width * 0.72f,
             y = groundY,
             facing = -1f,
             color = Color.parseColor("#FFF3ED"),
-            accent = if (bossRound) Color.parseColor("#C46BFF") else enemyAccents.random(random),
+            accent = if (bossRound) Color.parseColor("#C46BFF") else currentEnemyProfile.accent,
             outline = Color.parseColor("#120B10"),
             maxHealth = enemyHealth,
             health = enemyHealth,
-            energy = min(42f, round * 7f),
-            moveSpeed = dp((312f + round * 10f) * if (bossRound) 1.08f else 1f),
-            jumpForce = dp((840f + round * 8f) * if (bossRound) 1.05f else 1f),
+            energy = min(56f, round * 7f * currentEnemyProfile.specialBias),
+            moveSpeed = dp((312f + round * 10f) * if (bossRound) 1.08f else currentEnemyProfile.moveScale),
+            jumpForce = dp((840f + round * 8f) * if (bossRound) 1.05f else currentEnemyProfile.jumpScale),
         )
+        tutorialActive = tutorialActive && round <= 2
+        saveProgress()
         rebuildUiLayout()
     }
 
@@ -726,6 +863,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             chillToggleButton.contains(event.x, event.y) -> options.chillMode = !options.chillMode
             optionsBackButton.contains(event.x, event.y) -> closeOptions()
         }
+        saveProgress()
         invalidate()
     }
 
@@ -745,7 +883,9 @@ class CrimehunterGameView @JvmOverloads constructor(
         when {
             primaryButton.contains(event.x, event.y) -> {
                 if (phase == ScenePhase.ROUND_CLEAR) {
-                    if (currentRound % 2 == 0) {
+                    if (campaignComplete) {
+                        resetToTitle()
+                    } else if (currentRound % 2 == 0) {
                         buildUpgrades()
                     } else {
                         buildRound(currentRound + 1, keepStats = true)
@@ -824,6 +964,7 @@ class CrimehunterGameView @JvmOverloads constructor(
         if (phase == ScenePhase.TITLE) {
             statusText = "Enter the arena."
         }
+        saveProgress()
         rebuildUiLayout()
     }
 
@@ -834,6 +975,8 @@ class CrimehunterGameView @JvmOverloads constructor(
         clearTouchControls()
         optionsReturnPhase = ScenePhase.TITLE
         statusText = "Enter the arena."
+        campaignComplete = false
+        saveProgress()
         rebuildUiLayout()
     }
 
@@ -1091,6 +1234,9 @@ class CrimehunterGameView @JvmOverloads constructor(
             if (roundIntroTimer > 0f) {
                 drawRoundIntro(canvas)
             }
+            if (tutorialActive) {
+                drawTutorialHint(canvas)
+            }
         }
     }
 
@@ -1142,7 +1288,7 @@ class CrimehunterGameView @JvmOverloads constructor(
 
         centerTextPaint.textSize = sp(12f)
         centerTextPaint.color = Color.argb(220, 255, 255, 255)
-        canvas.drawText("ROUND $currentRound", rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
+        canvas.drawText("$currentRound / $maxCampaignRound", rect.centerX(), rect.centerY() + dp(4f), centerTextPaint)
     }
 
     private fun drawCoinChip(canvas: Canvas) {
@@ -1199,6 +1345,8 @@ class CrimehunterGameView @JvmOverloads constructor(
         canvas.drawText(activeArena.name.uppercase(), rect.centerX(), rect.top + dp(32f), centerTextPaint)
         centerTextPaint.textSize = sp(26f)
         canvas.drawText(roundIntroTitle, rect.centerX(), rect.centerY() + dp(2f), centerTextPaint)
+        centerTextPaint.textSize = sp(11f)
+        canvas.drawText(currentEnemyProfile.title.uppercase(), rect.centerX(), rect.bottom - dp(18f), centerTextPaint)
     }
 
     private fun drawControls(canvas: Canvas) {
@@ -1280,9 +1428,28 @@ class CrimehunterGameView @JvmOverloads constructor(
         drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(290f), "Touch controls built for phones")
         drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(346f), "Boss rounds and shifting arena themes")
         drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(402f), "Arcade rounds with upgrade choices")
+        drawFeatureStrip(canvas, card.left + dp(28f), card.top + dp(458f), "Twelve-round championship ladder")
+
+        drawMetricChip(canvas, RectF(card.left + dp(28f), card.bottom - dp(142f), card.left + dp(148f), card.bottom - dp(94f)), "BEST", highestRoundReached.toString(), Color.parseColor("#72C3FF"))
+        drawMetricChip(canvas, RectF(card.left + dp(162f), card.bottom - dp(142f), card.left + dp(302f), card.bottom - dp(94f)), "LIFETIME", lifetimeCoins.toString(), Color.parseColor("#FFD15A"))
+        drawMetricChip(canvas, RectF(card.left + dp(316f), card.bottom - dp(142f), card.left + dp(462f), card.bottom - dp(94f)), "CLEARS", championshipClears.toString(), Color.parseColor("#7AF0A6"))
 
         drawMenuButton(canvas, playButton, "Start Fight", "ENTER ARENA", Color.parseColor("#64E6A2"))
         drawMenuButton(canvas, optionsButton, "Options", "TUNE MATCH", Color.parseColor("#74A9FF"))
+
+        if (tutorialActive) {
+            textPaint.textSize = sp(12f)
+            textPaint.color = Color.argb(220, 227, 232, 238)
+            drawMultilineText(
+                canvas = canvas,
+                text = "First run tip: left side moves, top-left button pauses, right side attacks. Fill Burst for the finisher.",
+                left = card.left + dp(28f),
+                top = card.bottom - dp(66f),
+                maxWidth = card.width() - dp(56f),
+                lineHeight = dp(20f),
+                paint = textPaint,
+            )
+        }
 
         drawHeroSilhouette(canvas)
     }
@@ -1346,8 +1513,16 @@ class CrimehunterGameView @JvmOverloads constructor(
         drawMenuButton(
             canvas,
             primaryButton,
-            if (phase == ScenePhase.ROUND_CLEAR) "Continue" else "Retry",
-            if (phase == ScenePhase.ROUND_CLEAR) "NEXT ROUND" else "RUN IT BACK",
+            when {
+                phase == ScenePhase.ROUND_CLEAR && campaignComplete -> "New Run"
+                phase == ScenePhase.ROUND_CLEAR -> "Continue"
+                else -> "Retry"
+            },
+            when {
+                phase == ScenePhase.ROUND_CLEAR && campaignComplete -> "BACK TO TITLE"
+                phase == ScenePhase.ROUND_CLEAR -> "NEXT ROUND"
+                else -> "RUN IT BACK"
+            },
             if (phase == ScenePhase.ROUND_CLEAR) Color.parseColor("#6FE7A8") else Color.parseColor("#FF8D9A"),
         )
         drawMenuButton(canvas, secondaryButton, "Main Menu", "LEAVE ARENA", Color.parseColor("#74A9FF"))
@@ -1456,6 +1631,42 @@ class CrimehunterGameView @JvmOverloads constructor(
         canvas.drawText(text, left + dp(34f), rect.centerY() + dp(4f), textPaint)
     }
 
+    private fun drawMetricChip(canvas: Canvas, rect: RectF, label: String, value: String, accent: Int) {
+        fillPaint.color = Color.argb(188, 18, 24, 36)
+        canvas.drawRoundRect(rect, dp(18f), dp(18f), fillPaint)
+        strokePaint.color = Color.argb(120, Color.red(accent), Color.green(accent), Color.blue(accent))
+        strokePaint.strokeWidth = dp(2f)
+        canvas.drawRoundRect(rect, dp(18f), dp(18f), strokePaint)
+        textPaint.textAlign = Paint.Align.LEFT
+        textPaint.textSize = sp(10f)
+        textPaint.color = Color.argb(205, 208, 216, 228)
+        canvas.drawText(label, rect.left + dp(14f), rect.top + dp(18f), textPaint)
+        textPaint.textSize = sp(17f)
+        textPaint.color = Color.WHITE
+        canvas.drawText(value, rect.left + dp(14f), rect.bottom - dp(14f), textPaint)
+    }
+
+    private fun drawTutorialHint(canvas: Canvas) {
+        val rect = RectF(width * 0.31f, height - dp(146f), width * 0.69f, height - dp(70f))
+        fillPaint.color = Color.argb(156, 12, 16, 28)
+        canvas.drawRoundRect(rect, dp(20f), dp(20f), fillPaint)
+        strokePaint.color = Color.argb(120, 114, 198, 255)
+        strokePaint.strokeWidth = dp(2f)
+        canvas.drawRoundRect(rect, dp(20f), dp(20f), strokePaint)
+        centerTextPaint.textSize = sp(10.5f)
+        centerTextPaint.color = Color.WHITE
+        drawMultilineText(
+            canvas = canvas,
+            text = "Move on the left, attack on the right, and fill Burst for the finisher. Clear $maxCampaignRound rounds to win the ladder.",
+            left = rect.left + dp(16f),
+            top = rect.top + dp(26f),
+            maxWidth = rect.width() - dp(32f),
+            lineHeight = dp(18f),
+            paint = centerTextPaint,
+            centered = true,
+        )
+    }
+
     private fun drawHeroSilhouette(canvas: Canvas) {
         val baseX = width * 0.76f
         val baseY = height * 0.76f
@@ -1553,6 +1764,33 @@ class CrimehunterGameView @JvmOverloads constructor(
             particle.size *= 0.992f
             if (particle.life <= 0f) iterator.remove()
         }
+    }
+
+    private fun loadProgress() {
+        highestRoundReached = max(1, prefs.getInt("highest_round", 1))
+        lifetimeCoins = prefs.getInt("lifetime_coins", 0)
+        championshipClears = prefs.getInt("championship_clears", 0)
+        runsStarted = prefs.getInt("runs_started", 0)
+        tutorialActive = prefs.getBoolean("tutorial_active", true)
+        options =
+            GameOptions(
+                cinematicShake = prefs.getBoolean("option_shake", true),
+                hitPause = prefs.getBoolean("option_hit_pause", true),
+                chillMode = prefs.getBoolean("option_chill", true),
+            )
+    }
+
+    private fun saveProgress() {
+        prefs.edit()
+            .putInt("highest_round", highestRoundReached)
+            .putInt("lifetime_coins", lifetimeCoins)
+            .putInt("championship_clears", championshipClears)
+            .putInt("runs_started", runsStarted)
+            .putBoolean("tutorial_active", tutorialActive)
+            .putBoolean("option_shake", options.cinematicShake)
+            .putBoolean("option_hit_pause", options.hitPause)
+            .putBoolean("option_chill", options.chillMode)
+            .apply()
     }
 
     private fun approach(current: Float, target: Float, amount: Float): Float {

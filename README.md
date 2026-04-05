@@ -6,8 +6,9 @@ Skyline Stick Clash is now a native Kotlin Android stickman fighting game built 
 
 - Fullscreen landscape gameplay with a custom Android `View`
 - Original 2D stickman arena combat with touch controls
-- Enemy AI, combo-driven attacks, jumps, dashes, and special bursts
-- Round progression with upgrade picks between matches
+- Multiple enemy archetypes, boss rounds, jumps, dashes, and special bursts
+- A twelve-round campaign ladder with upgrade picks between matches
+- Persistent profile progress for best round, lifetime coins, clears, and options
 - Mobile HUD, result overlays, and menu screens built in Kotlin
 - Debug APK and release AAB builds through Gradle
 
