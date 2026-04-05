@@ -85,15 +85,15 @@ class CrimehunterGameView @JvmOverloads constructor(
         Color.parseColor("#8A5A41"),
     )
     private val enemyShirts = listOf(
-        Color.parseColor("#6B1F29"),
-        Color.parseColor("#7D2E3B"),
-        Color.parseColor("#5C2433"),
+        Color.parseColor("#E65B50"),
+        Color.parseColor("#D84B42"),
+        Color.parseColor("#F06A5F"),
     )
     private val civilianShirts = listOf(
-        Color.parseColor("#507A93"),
-        Color.parseColor("#4A8C74"),
-        Color.parseColor("#8D6A4E"),
-        Color.parseColor("#5572A5"),
+        Color.parseColor("#5C86C2"),
+        Color.parseColor("#4E9B8D"),
+        Color.parseColor("#C3A06F"),
+        Color.parseColor("#7C8DC8"),
     )
     private val pantColors = listOf(
         Color.parseColor("#1A2434"),
@@ -424,9 +424,6 @@ class CrimehunterGameView @JvmOverloads constructor(
         drawMissionChip(canvas)
         drawCoinCounter(canvas)
         drawAmmoPanel(canvas)
-        if (phase == ScenePhase.PLAYING) {
-            drawStatusChip(canvas)
-        }
     }
 
     private fun drawOverlays(canvas: Canvas) {
@@ -946,86 +943,79 @@ class CrimehunterGameView @JvmOverloads constructor(
 
     private fun roofPerspectiveScale(roofIndex: Int): Float {
         return when (roofIndex) {
-            0 -> 1.18f
+            0 -> 1.08f
             1 -> 1f
-            2 -> 0.88f
-            3 -> 0.77f
-            else -> 0.68f
+            2 -> 0.94f
+            3 -> 0.88f
+            else -> 0.82f
         }
     }
 
     private fun drawRoofVolume(canvas: Canvas, rooftop: Rooftop, index: Int) {
-        val scale = roofPerspectiveScale(index)
-        val depth = dp(34f) * scale
-        val inset = dp(18f) * scale
-        val frontPath = Path().apply {
-            moveTo(rooftop.left, rooftop.top)
-            lineTo(rooftop.right, rooftop.top)
-            lineTo(rooftop.right, height.toFloat())
-            lineTo(rooftop.left, height.toFloat())
-            close()
-        }
-        val topPath = Path().apply {
-            moveTo(rooftop.left, rooftop.top)
-            lineTo(rooftop.right, rooftop.top)
-            lineTo(rooftop.right - inset, rooftop.top - depth)
-            lineTo(rooftop.left + inset, rooftop.top - depth)
-            close()
-        }
-        val sidePath = Path().apply {
-            moveTo(rooftop.right, rooftop.top)
-            lineTo(rooftop.right - inset, rooftop.top - depth)
-            lineTo(rooftop.right - inset, height.toFloat() - depth * 0.22f)
-            lineTo(rooftop.right, height.toFloat())
-            close()
+        if (index == 0) {
+            val deck = RectF(rooftop.left, rooftop.top, rooftop.right, height.toFloat())
+            fillPaint.color = Color.parseColor("#344E77")
+            canvas.drawRect(deck, fillPaint)
+            fillPaint.color = Color.parseColor("#4F6FA1")
+            canvas.drawRect(deck.left, deck.top, deck.right, deck.top + dp(16f), fillPaint)
+            strokePaint.color = Color.argb(70, 255, 255, 255)
+            strokePaint.strokeWidth = dp(2f)
+            canvas.drawLine(deck.left, deck.top + dp(16f), deck.right, deck.top + dp(16f), strokePaint)
+            return
         }
 
-        val frontColor = if (index == 0) Color.parseColor("#A7734F") else blendWithWhite(rooftop.accent, 0.18f)
-        val topColor = if (index == 0) Color.parseColor("#C89367") else blendWithWhite(rooftop.accent, 0.05f)
-        val sideColor = shadeColor(frontColor, 0.82f)
-
+        val frontColor = blendWithWhite(rooftop.accent, 0.12f)
+        val roofColor = shadeColor(rooftop.accent, 0.72f)
+        val capHeight = dp(10f)
+        val buildingRect = RectF(rooftop.left, rooftop.top, rooftop.right, height * 0.62f)
         fillPaint.color = frontColor
-        canvas.drawPath(frontPath, fillPaint)
-        fillPaint.color = topColor
-        canvas.drawPath(topPath, fillPaint)
-        fillPaint.color = sideColor
-        canvas.drawPath(sidePath, fillPaint)
+        canvas.drawRect(buildingRect, fillPaint)
+        fillPaint.color = roofColor
+        canvas.drawRect(buildingRect.left - dp(2f), buildingRect.top - capHeight, buildingRect.right + dp(2f), buildingRect.top, fillPaint)
+        strokePaint.color = Color.argb(60, 0, 0, 0)
+        strokePaint.strokeWidth = dp(1.4f)
+        canvas.drawRect(buildingRect, strokePaint)
 
-        fillPaint.color = Color.argb(54, 255, 255, 255)
-        canvas.drawRoundRect(
-            RectF(rooftop.left + dp(3f), rooftop.top - dp(2f), rooftop.right - dp(3f), rooftop.top + dp(6f)),
-            dp(4f),
-            dp(4f),
-            fillPaint,
-        )
-
-        if (index > 0) {
-            val windowWidth = max(dp(10f), rooftop.width * 0.12f)
-            val windowHeight = max(dp(14f), depth * 0.42f)
-            val gap = max(dp(9f), rooftop.width * 0.08f)
-            var windowLeft = rooftop.left + rooftop.width * 0.12f
-            val windowTop = rooftop.top + dp(28f)
-            fillPaint.color = Color.argb(96, 112, 144, 176)
-            while (windowLeft + windowWidth < rooftop.right - rooftop.width * 0.1f) {
+        val windowWidth = max(dp(10f), rooftop.width * 0.15f)
+        val windowHeight = dp(18f)
+        val columns = max(2, ((rooftop.width - dp(20f)) / (windowWidth + dp(8f))).toInt())
+        val rowGap = dp(12f)
+        val startLeft = buildingRect.left + (buildingRect.width() - (columns * windowWidth + (columns - 1) * dp(8f))) * 0.5f
+        var rowTop = buildingRect.top + dp(20f)
+        fillPaint.color = Color.parseColor("#7E95B1")
+        while (rowTop + windowHeight < buildingRect.bottom - dp(18f)) {
+            repeat(columns) { column ->
+                val left = startLeft + column * (windowWidth + dp(8f))
                 canvas.drawRoundRect(
-                    RectF(windowLeft, windowTop, windowLeft + windowWidth, windowTop + windowHeight),
-                    dp(3f),
-                    dp(3f),
+                    RectF(left, rowTop, left + windowWidth, rowTop + windowHeight),
+                    dp(2f),
+                    dp(2f),
                     fillPaint,
                 )
-                windowLeft += windowWidth + gap
             }
+            rowTop += windowHeight + rowGap
+        }
 
-            fillPaint.color = shadeColor(frontColor, 0.72f)
+        if (index == 2) {
+            fillPaint.color = shadeColor(frontColor, 0.7f)
+            canvas.drawRect(
+                rooftop.left + rooftop.width * 0.32f,
+                rooftop.top + dp(42f),
+                rooftop.right - rooftop.width * 0.32f,
+                rooftop.top + dp(74f),
+                fillPaint,
+            )
+            strokePaint.color = Color.argb(70, 255, 255, 255)
+            strokePaint.strokeWidth = dp(1.5f)
+            canvas.drawLine(rooftop.left + rooftop.width * 0.28f, rooftop.top + dp(72f), rooftop.right - rooftop.width * 0.28f, rooftop.top + dp(72f), strokePaint)
+        }
+
+        if (index == 3) {
+            fillPaint.color = Color.parseColor("#9D6D55")
             canvas.drawRoundRect(
-                RectF(
-                    rooftop.left + rooftop.width * 0.16f,
-                    rooftop.top - depth * 0.5f,
-                    rooftop.left + rooftop.width * 0.32f,
-                    rooftop.top - depth * 0.14f,
-                ),
-                dp(6f),
-                dp(6f),
+                RectF(rooftop.left + rooftop.width * 0.18f, rooftop.top + dp(20f), rooftop.right - rooftop.width * 0.18f, rooftop.top + dp(34f)),
+                dp(3f),
+                dp(3f),
                 fillPaint,
             )
         }
@@ -1084,12 +1074,12 @@ class CrimehunterGameView @JvmOverloads constructor(
             if (!actor.isAlive || actor.isEscaped) return@forEach
 
             val scale = roofPerspectiveScale(actor.roofIndex)
-            val bodyCenterY = actor.y - actor.radius * (1.12f + (1f - scale) * 0.2f) - actor.crouchAmount * actor.radius * 0.34f
-            val headCenterY = bodyCenterY - actor.radius * 1.02f
-            val shoulderY = bodyCenterY - actor.radius * 0.32f
-            val shoulderWidth = actor.radius * (0.72f + scale * 0.08f)
-            val torsoBottom = bodyCenterY + actor.radius * 0.86f
-            val armSwing = sin(actor.animationTime * 5.5f) * actor.radius * 0.1f
+            val bodyCenterY = actor.y - actor.radius * (1.1f + (1f - scale) * 0.18f) - actor.crouchAmount * actor.radius * 0.34f
+            val headCenterY = bodyCenterY - actor.radius * 0.92f
+            val torsoTop = bodyCenterY - actor.radius * 0.34f
+            val torsoBottom = bodyCenterY + actor.radius * 0.84f
+            val torsoWidth = actor.radius * (0.66f + scale * 0.06f)
+            val armSwing = sin(actor.animationTime * 4.8f) * actor.radius * 0.08f
 
             actorPaint.color = Color.argb(58, 6, 10, 14)
             canvas.drawOval(
@@ -1102,8 +1092,11 @@ class CrimehunterGameView @JvmOverloads constructor(
                 actorPaint,
             )
 
+            strokePaint.color = Color.argb(90, 0, 0, 0)
+            strokePaint.strokeWidth = dp(1.6f)
             actorPaint.color = actor.skinTone
             canvas.drawCircle(actor.x, headCenterY, actor.radius * 0.44f, actorPaint)
+            canvas.drawCircle(actor.x, headCenterY, actor.radius * 0.44f, strokePaint)
             actorPaint.color = actor.hairColor
             canvas.drawArc(
                 RectF(actor.x - actor.radius * 0.48f, headCenterY - actor.radius * 0.52f, actor.x + actor.radius * 0.48f, headCenterY + actor.radius * 0.2f),
@@ -1112,41 +1105,27 @@ class CrimehunterGameView @JvmOverloads constructor(
                 true,
                 actorPaint,
             )
-            fillPaint.color = adjustAlpha(Color.BLACK, 0.28f)
-            canvas.drawOval(
-                RectF(
-                    actor.x - actor.radius * 0.16f,
-                    headCenterY + actor.radius * 0.04f,
-                    actor.x + actor.radius * 0.16f,
-                    headCenterY + actor.radius * 0.22f,
-                ),
-                fillPaint,
-            )
-            fillPaint.color = Color.parseColor("#1A202C")
-            canvas.drawCircle(actor.x - actor.radius * 0.14f, headCenterY - actor.radius * 0.02f, actor.radius * 0.04f, fillPaint)
-            canvas.drawCircle(actor.x + actor.radius * 0.14f, headCenterY - actor.radius * 0.02f, actor.radius * 0.04f, fillPaint)
             actorPaint.color = actor.shirtColor
             canvas.drawRoundRect(
-                RectF(actor.x - shoulderWidth, shoulderY, actor.x + shoulderWidth, torsoBottom),
+                RectF(actor.x - torsoWidth, torsoTop, actor.x + torsoWidth, torsoBottom),
                 actor.radius * 0.26f,
                 actor.radius * 0.26f,
                 actorPaint,
             )
-            actorPaint.color = adjustAlpha(Color.WHITE, 0.12f)
             canvas.drawRoundRect(
-                RectF(actor.x - shoulderWidth * 0.78f, shoulderY + actor.radius * 0.08f, actor.x + shoulderWidth * 0.4f, shoulderY + actor.radius * 0.34f),
-                actor.radius * 0.2f,
-                actor.radius * 0.2f,
-                actorPaint,
+                RectF(actor.x - torsoWidth, torsoTop, actor.x + torsoWidth, torsoBottom),
+                actor.radius * 0.26f,
+                actor.radius * 0.26f,
+                strokePaint,
             )
 
             actorPaint.color = actor.skinTone
-            canvas.drawRect(actor.x - actor.radius * 0.1f, headCenterY + actor.radius * 0.34f, actor.x + actor.radius * 0.1f, shoulderY + actor.radius * 0.08f, actorPaint)
+            canvas.drawRect(actor.x - actor.radius * 0.1f, headCenterY + actor.radius * 0.34f, actor.x + actor.radius * 0.1f, torsoTop + actor.radius * 0.1f, actorPaint)
 
             strokePaint.color = actor.skinTone
             strokePaint.strokeWidth = actor.radius * 0.18f
-            canvas.drawLine(actor.x - shoulderWidth * 0.98f, shoulderY + actor.radius * 0.18f, actor.x - shoulderWidth * 1.18f, shoulderY + actor.radius * 0.8f + armSwing, strokePaint)
-            canvas.drawLine(actor.x + shoulderWidth * 0.98f, shoulderY + actor.radius * 0.18f, actor.x + shoulderWidth * 1.14f, shoulderY + actor.radius * 0.78f - armSwing, strokePaint)
+            canvas.drawLine(actor.x - torsoWidth, torsoTop + actor.radius * 0.16f, actor.x - torsoWidth * 1.24f, torsoTop + actor.radius * 0.72f + armSwing, strokePaint)
+            canvas.drawLine(actor.x + torsoWidth, torsoTop + actor.radius * 0.16f, actor.x + torsoWidth * 1.18f, torsoTop + actor.radius * 0.72f - armSwing, strokePaint)
 
             strokePaint.color = actor.pantsColor
             strokePaint.strokeWidth = actor.radius * 0.26f
@@ -1156,7 +1135,7 @@ class CrimehunterGameView @JvmOverloads constructor(
             if (actor.role == ActorRole.ENEMY) {
                 actorPaint.color = Color.parseColor("#0F141A")
                 canvas.drawRoundRect(
-                    RectF(actor.x + shoulderWidth * 0.25f, shoulderY + actor.radius * 0.14f, actor.x + shoulderWidth * 1.22f, shoulderY + actor.radius * 0.28f),
+                    RectF(actor.x + torsoWidth * 0.18f, torsoTop + actor.radius * 0.18f, actor.x + torsoWidth * 1.18f, torsoTop + actor.radius * 0.34f),
                     actor.radius * 0.08f,
                     actor.radius * 0.08f,
                     actorPaint,
@@ -1251,11 +1230,11 @@ class CrimehunterGameView @JvmOverloads constructor(
 
         textPaint.textSize = sp(15f)
         textPaint.color = Color.parseColor("#E5F1FF")
-        drawMultilineText(canvas, "Track thugs across the block, protect civilians, and land the shot before the target escapes.", card.left + dp(24f), card.top + dp(112f), card.width() - dp(48f), textPaint, dp(22f))
+        drawMultilineText(canvas, "A clean 2D sniper game. Track thugs across the block, protect civilians, and land the shot before the target escapes.", card.left + dp(24f), card.top + dp(112f), card.width() - dp(48f), textPaint, dp(22f))
 
-        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(214f), "Bright 3D city look")
+        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(214f), "Arcade 2D city style")
         drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(254f), "Compact HUD and quick shots")
-        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(294f), "Clean mission flow")
+        drawFeatureStrip(canvas, card.left + dp(24f), card.top + dp(294f), "Fast mission restart flow")
 
         drawButton(canvas, titleButton, "Play", Color.parseColor("#A7F231"), "start")
         drawButton(canvas, optionsButton, "Options", Color.parseColor("#4BA7FF"), "settings")
